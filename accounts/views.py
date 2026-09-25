@@ -147,6 +147,7 @@ def trang_chu_view(request):
     """
     return render(request, 'accounts/dashboard.html', {
         'user': request.user,
+        'active_nav': 'dashboard',
     })
 
 

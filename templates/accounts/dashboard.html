@@ -1,95 +1,24 @@
-{% extends 'base.html' %}
+{% extends 'base_app.html' %}
 
-{% block title %}Trang Chủ Khách Thuê — Quản Lý Phòng Trọ{% endblock %}
+{% block title %}Tổng quan — Quản Lý Phòng Trọ{% endblock %}
+{% block page_title %}Tổng quan{% endblock %}
+{% block page_subtitle %}Khung giao diện chung cho các chức năng của hệ thống.{% endblock %}
 
 {% block content %}
-<div class="container">
-    <div class="row justify-content-center">
-        <div class="col-12 col-md-10 col-lg-8">
-            <!-- Thẻ chào mừng -->
-            <div class="card card-custom p-4 p-md-5 bg-white mb-4">
-                <div class="d-flex flex-column flex-sm-row align-items-center gap-3 pb-3 border-bottom mb-4">
-                    <div class="d-flex align-items-center justify-content-center bg-success bg-opacity-10 text-success rounded-circle" style="width: 72px; height: 72px;">
-                        <i class="bi bi-shield-check fs-1"></i>
-                    </div>
-                    <div class="text-center text-sm-start">
-                        <span class="badge bg-success bg-opacity-10 text-success fw-semibold px-2 py-1 mb-1">
-                            Đã đăng nhập thành công
-                        </span>
-                        <h2 class="h3 fw-bold mb-1">Xin chào, {{ user.ho_ten }}!</h2>
-                        <p class="text-muted small mb-0">Chào mừng bạn đến với hệ thống Quản lý cho thuê phòng trọ</p>
-                    </div>
-                </div>
-
-                <h5 class="fw-bold mb-3"><i class="bi bi-person-badge me-2 text-primary"></i>Thông tin tài khoản</h5>
-
-                <div class="table-responsive">
-                    <table class="table table-bordered table-striped align-middle mb-4">
-                        <tbody>
-                            <tr>
-                                <th class="bg-light text-muted w-25" style="min-width: 140px;">Họ và tên</th>
-                                <td class="fw-semibold">{{ user.ho_ten }}</td>
-                            </tr>
-                            <tr>
-                                <th class="bg-light text-muted">Vai trò hệ thống</th>
-                                <td>
-                                    <span class="badge bg-primary fs-6 px-3 py-1">
-                                        <i class="bi bi-person-fill me-1"></i>{{ user.get_vai_tro_display }}
-                                    </span>
-                                    <span class="text-muted small ms-2">({{ user.vai_tro }})</span>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th class="bg-light text-muted">Số điện thoại</th>
-                                <td class="font-monospace">{{ user.so_dien_thoai }}</td>
-                            </tr>
-                            <tr>
-                                <th class="bg-light text-muted">Địa chỉ Email</th>
-                                <td>{{ user.email }}</td>
-                            </tr>
-                            <tr>
-                                <th class="bg-light text-muted">Trạng thái</th>
-                                <td>
-                                    {% if user.is_active %}
-                                        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đang hoạt động</span>
-                                    {% else %}
-                                        <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Đã khóa</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            <tr>
-                                <th class="bg-light text-muted">Ngày tạo tài khoản</th>
-                                <td>{{ user.ngay_tao|date:"d/m/Y H:i" }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="alert alert-info d-flex align-items-center gap-2 mb-4" role="alert">
-                    <i class="bi bi-info-circle-fill fs-5 flex-shrink-0"></i>
-                    <div class="small">
-                        Hệ thống đã xác thực phiên làm việc hợp lệ. Tài khoản được cấp quyền vai trò <strong>Khách thuê</strong>. Bạn có thể tiếp tục tìm phòng hoặc gửi yêu cầu thuê khi các module tiếp theo sẵn sàng.
-                    </div>
-                </div>
-
-                <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
-                    <a href="{% url 'dang_ky' %}" class="btn btn-outline-secondary btn-sm">
-                        <i class="bi bi-arrow-left me-1"></i>Về trang đăng ký
-                    </a>
-                    <a href="{% url 'dang_xuat' %}" class="btn btn-danger btn-sm" id="btnLogout">
-                        <i class="bi bi-box-arrow-right me-1"></i>Đăng xuất
-                    </a>
-                </div>
-            </div>
+<section class="app-card bg-white p-4 p-lg-5" aria-label="Vùng nội dung trang">
+    <div class="d-flex align-items-start gap-3">
+        <div class="app-brand-icon flex-shrink-0"><i class="bi bi-layout-text-window-reverse"></i></div>
+        <div>
+            <h2 class="h5 fw-bold mb-2">Vùng nội dung chức năng</h2>
+            <p class="text-muted mb-0">Các trang sẽ dùng chung thanh điều hướng, menu bên trái, tiêu đề trang và vùng nội dung này.</p>
         </div>
     </div>
-</div>
+</section>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    // Kiểm tra hạn JWT khi vào dashboard; refresh token còn hạn sẽ cấp access mới.
     function tokenExpiresAt(token) {
         try {
             const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
@@ -98,7 +27,6 @@ document.addEventListener('DOMContentLoaded', function () {
             return 0;
         }
     }
-
     function cookie(name) {
         const item = document.cookie.split('; ').find(part => part.startsWith(name + '='));
         return item ? decodeURIComponent(item.substring(name.length + 1)) : null;
