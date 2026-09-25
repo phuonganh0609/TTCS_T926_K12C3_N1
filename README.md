@@ -3,6 +3,76 @@
 
 ---
 
+## Phiên bản Spring Boot + React
+
+Nhánh `feature/tenant-self-registration-spring-react` triển khai lại chức năng
+đăng ký khách thuê theo stack trong yêu cầu ban đầu:
+
+- Backend: Spring Boot 3, Java 17, Spring Data JPA, PostgreSQL 15.
+- Frontend: React 18, TypeScript, Vite.
+- Xác thực: BCrypt, JWT access token 30 phút và refresh token 7 ngày.
+
+### Chạy PostgreSQL
+
+Cần cài Docker Desktop và chạy:
+
+```powershell
+docker compose up -d postgres
+```
+
+### Chạy backend
+
+Yêu cầu Java 17 và Maven 3.9+:
+
+```powershell
+cd backend
+mvn test
+mvn spring-boot:run
+```
+
+Backend chạy tại `http://localhost:8080`.
+
+### Chạy frontend
+
+Mở terminal thứ hai:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Mở `http://localhost:5173` để dùng form đăng ký.
+
+API đăng ký:
+
+```text
+POST http://localhost:8080/api/auth/register
+```
+
+Body JSON:
+
+```json
+{
+  "fullName": "Nguyen Van A",
+  "phone": "0901234567",
+  "email": "a@example.com",
+  "password": "MatKhau123"
+}
+```
+
+Lỗi validation trả HTTP `400` với `fieldErrors`. Sau Lát 2, lỗi trùng email
+hoặc số điện thoại sẽ trả HTTP `409` với mã `DUPLICATE_FIELD`.
+
+Kiểm tra backend bằng H2 test database, không cần PostgreSQL:
+
+```powershell
+cd backend
+mvn test
+```
+
+---
+
 ## 1. Công nghệ sử dụng
 - **Ngôn ngữ**: Python 3.12+
 - **Framework**: Django 5.1
