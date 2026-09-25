@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -28,6 +29,9 @@ class AuthControllerIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @BeforeEach
     void clearUsers() {
@@ -152,5 +156,49 @@ class AuthControllerIntegrationTest {
                 .andExpect(jsonPath("$.fieldErrors.email", containsString("Email")));
 
         org.junit.jupiter.api.Assertions.assertEquals(1, userRepository.count());
+    }
+
+    @Test
+    void loginWithEmailReturnsNewTokens() throws Exception {
+        userRepository.save(new User("Login User", "0905555555", "login@example.com", passwordEncoder.encode("StrongPass123"), Role.TENANT));
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "identifier": "login@example.com",
+                                  "password": "StrongPass123"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken", notNullValue()))
+                .andExpect(jsonPath("$.user.email").value("login@example.com"));
+    }
+
+    @Test
+    void loginWithPhoneAndWrongPasswordReturnExpectedResults() throws Exception {
+        userRepository.save(new User("Phone Login", "0906666666", "phone-login@example.com", passwordEncoder.encode("StrongPass123"), Role.TENANT));
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "identifier": "0906666666",
+                                  "password": "StrongPass123"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.phone").value("0906666666"));
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "identifier": "0906666666",
+                                  "password": "WrongPass123"
+                                }
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"));
     }
 }

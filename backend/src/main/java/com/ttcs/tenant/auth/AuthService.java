@@ -4,6 +4,7 @@ import com.ttcs.tenant.user.Role;
 import com.ttcs.tenant.user.User;
 import com.ttcs.tenant.user.UserRepository;
 import com.ttcs.tenant.error.DuplicateFieldException;
+import com.ttcs.tenant.error.InvalidCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,6 +55,25 @@ public class AuthService {
                 new RegisterResponse.UserResponse(
                         savedUser.getId(), savedUser.getFullName(), savedUser.getPhone(), savedUser.getEmail(), savedUser.getRole()
                 )
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public RegisterResponse login(LoginRequest request) {
+        String identifier = request.identifier().trim();
+        User user = identifier.contains("@")
+                ? userRepository.findByEmailIgnoreCase(identifier).orElse(null)
+                : userRepository.findByPhone(identifier).orElse(null);
+        if (user == null || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            throw new InvalidCredentialsException();
+        }
+
+        return new RegisterResponse(
+                jwtService.createAccessToken(user),
+                jwtService.createRefreshToken(user),
+                "Bearer",
+                jwtService.getAccessTokenSeconds(),
+                new RegisterResponse.UserResponse(user.getId(), user.getFullName(), user.getPhone(), user.getEmail(), user.getRole())
         );
     }
 }

@@ -13,6 +13,13 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ApiError> handleInvalidCredentials(InvalidCredentialsException exception) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiError(
+                "INVALID_CREDENTIALS", exception.getMessage(), Map.of(), Instant.now()
+        ));
+    }
+
     @ExceptionHandler(DuplicateFieldException.class)
     public ResponseEntity<ApiError> handleDuplicate(DuplicateFieldException exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(new ApiError(
