@@ -61,8 +61,9 @@ Body JSON:
 }
 ```
 
-Lỗi validation trả HTTP `400` với `fieldErrors`. Sau Lát 2, lỗi trùng email
-hoặc số điện thoại sẽ trả HTTP `409` với mã `DUPLICATE_FIELD`.
+Lỗi validation trả HTTP `400` với `fieldErrors`. Lỗi trùng email hoặc số điện
+thoại trả HTTP `409` với mã `DUPLICATE_FIELD`; frontend hiển thị lỗi đúng tại
+field tương ứng và không tạo tài khoản mới.
 
 Kiểm tra backend bằng H2 test database, không cần PostgreSQL:
 
