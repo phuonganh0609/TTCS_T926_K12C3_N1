@@ -12,9 +12,20 @@ Nhánh `feature/tenant-self-registration-spring-react` triển khai lại chức
 - Frontend: React 18, TypeScript, Vite.
 - Xác thực: BCrypt, JWT access token 30 phút và refresh token 7 ngày.
 
+### Trạng thái bàn giao
+
+- [x] Lát 1: đăng ký khách thuê, hash BCrypt, JWT access/refresh token và tự động đăng nhập.
+- [x] Lát 2: kiểm tra trùng email/số điện thoại, trả lỗi đúng field với HTTP `409`.
+- [x] Đăng nhập bằng email hoặc số điện thoại.
+- [x] Frontend hiển thị nhãn vai trò `Khách thuê`, không hiển thị mã `TENANT`.
+- [x] Backend integration tests và frontend production build đã pass.
+
+Nhánh này đã push lên GitHub nhưng **chưa merge vào `dev`**. Các thay đổi cũ
+trên nhánh `feature/tenant-self-registration` vẫn được giữ nguyên.
+
 ### Chạy PostgreSQL
 
-Cần cài Docker Desktop và chạy:
+Cần cài Docker Desktop, bảo đảm Docker Engine đang chạy, sau đó chạy:
 
 ```powershell
 docker compose up -d postgres
@@ -42,7 +53,8 @@ npm install
 npm run dev
 ```
 
-Mở `http://localhost:5173` để dùng form đăng ký.
+Mở URL Vite in trong terminal, thường là `http://localhost:5173`. Nếu port
+`5173` đang bận, Vite sẽ tự chuyển sang `http://localhost:5174`.
 
 API đăng ký:
 
@@ -87,9 +99,20 @@ cd backend
 mvn test
 ```
 
+Để dừng PostgreSQL sau khi demo:
+
+```powershell
+docker compose down
+```
+
 ---
 
-## 1. Công nghệ sử dụng
+## Phiên bản Django cũ
+
+Phần bên dưới là implementation Django/SQLite cũ từ `origin/dev`. Không dùng
+phần này để chạy nhánh Spring Boot + React mới.
+
+## 1. Công nghệ sử dụng (Django cũ)
 - **Ngôn ngữ**: Python 3.12+
 - **Framework**: Django 5.1
 - **Cơ sở dữ liệu**: SQLite (bảng nghiệp vụ theo thiết kế `docs/02-csdl.md`)
