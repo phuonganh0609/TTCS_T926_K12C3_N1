@@ -13,6 +13,13 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(DuplicateFieldException.class)
+    public ResponseEntity<ApiError> handleDuplicate(DuplicateFieldException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ApiError(
+                "DUPLICATE_FIELD", exception.getMessage(), exception.getFieldErrors(), Instant.now()
+        ));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException exception) {
         Map<String, String> fieldErrors = new LinkedHashMap<>();
