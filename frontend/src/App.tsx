@@ -106,9 +106,9 @@ function App() {
   return (
     <main className="shell">
       <section className="intro">
-        <p className="eyebrow">NỀN TẢNG THUÊ NHÀ</p>
+        <p className="eyebrow">HỆ THỐNG CHO THUÊ PHÒNG TRỌ VÀ CĂN HỘ</p>
         <h1>Tìm một nơi vừa vặn với nhịp sống của bạn.</h1>
-        <p className="intro-copy">Tạo tài khoản khách thuê để lưu tin, gửi yêu cầu và bắt đầu hành trình tìm chỗ ở phù hợp.</p>
+        <p className="intro-copy">Đăng ký tài khoản khách thuê để tìm phòng trọ, căn hộ và gửi yêu cầu thuê ngay khi thấy tin phù hợp.</p>
         <div className="trust-row">
           <span><CheckCircle2 size={17} /> Miễn phí bắt đầu</span>
           <span><LockKeyhole size={17} /> Mật khẩu được bảo vệ</span>
