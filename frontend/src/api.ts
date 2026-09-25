@@ -5,6 +5,11 @@ export interface RegisterForm {
   password: string;
 }
 
+export interface LoginForm {
+  identifier: string;
+  password: string;
+}
+
 export interface RegisterResponse {
   accessToken: string;
   refreshToken: string;
@@ -38,6 +43,21 @@ export async function registerTenant(form: RegisterForm): Promise<RegisterRespon
     };
     validationError.fieldErrors = error.fieldErrors;
     throw validationError;
+  }
+
+  return (await response.json()) as RegisterResponse;
+}
+
+export async function loginTenant(form: LoginForm): Promise<RegisterResponse> {
+  const response = await fetch(`${import.meta.env.VITE_API_URL ?? 'http://localhost:8080'}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(form),
+  });
+
+  if (!response.ok) {
+    const error = (await response.json()) as ErrorResponse;
+    throw new Error(error.message ?? 'Đăng nhập không thành công.');
   }
 
   return (await response.json()) as RegisterResponse;

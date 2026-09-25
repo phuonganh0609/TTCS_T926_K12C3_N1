@@ -1,11 +1,16 @@
 import { FormEvent, useState } from 'react';
 import { ArrowRight, CheckCircle2, LockKeyhole, Mail, Phone, UserRound } from 'lucide-react';
-import { registerTenant, RegisterForm, RegisterResponse } from './api';
+import { loginTenant, LoginForm, registerTenant, RegisterForm, RegisterResponse } from './api';
 
 const initialForm: RegisterForm = {
   fullName: '',
   phone: '',
   email: '',
+  password: '',
+};
+
+const initialLoginForm: LoginForm = {
+  identifier: '',
   password: '',
 };
 
@@ -27,6 +32,8 @@ function App() {
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [dashboardUser, setDashboardUser] = useState<RegisterResponse['user'] | null>(null);
+  const [mode, setMode] = useState<'register' | 'login'>('register');
+  const [loginForm, setLoginForm] = useState<LoginForm>(initialLoginForm);
 
   const updateField = (field: keyof RegisterForm, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -34,9 +41,20 @@ function App() {
     setServerError('');
   };
 
+  const updateLoginField = (field: keyof LoginForm, value: string) => {
+    setLoginForm((current) => ({ ...current, [field]: value }));
+    setErrors((current) => ({ ...current, [field]: '' }));
+    setServerError('');
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const validationErrors = clientErrors(form);
+    const validationErrors = mode === 'register'
+      ? clientErrors(form)
+      : {
+          ...(loginForm.identifier.trim() ? {} : { identifier: 'Vui lòng nhập email hoặc số điện thoại.' }),
+          ...(loginForm.password ? {} : { password: 'Vui lòng nhập mật khẩu.' }),
+        };
     setErrors(validationErrors);
     setServerError('');
     setSuccess(false);
@@ -44,11 +62,12 @@ function App() {
 
     setLoading(true);
     try {
-      const response = await registerTenant(form);
+      const response = mode === 'register' ? await registerTenant(form) : await loginTenant(loginForm);
       localStorage.setItem('accessToken', response.accessToken);
       localStorage.setItem('refreshToken', response.refreshToken);
-      setSuccess(true);
+      setSuccess(mode === 'register');
       setForm(initialForm);
+      setLoginForm(initialLoginForm);
       window.history.replaceState({}, '', '/trang-chu');
       window.setTimeout(() => setDashboardUser(response.user), 700);
     } catch (error) {
@@ -93,8 +112,8 @@ function App() {
         <div className="panel-heading">
           <div className="mark"><UserRound size={20} /></div>
           <div>
-            <p className="kicker">TẠO TÀI KHOẢN</p>
-            <h2 id="register-title">Đăng ký khách thuê</h2>
+            <p className="kicker">{mode === 'register' ? 'TẠO TÀI KHOẢN' : 'CHÀO MỪNG TRỞ LẠI'}</p>
+            <h2 id="register-title">{mode === 'register' ? 'Đăng ký khách thuê' : 'Đăng nhập'}</h2>
           </div>
         </div>
 
@@ -102,6 +121,18 @@ function App() {
         {serverError && <div className="alert error">{serverError}</div>}
 
         <form onSubmit={submit} noValidate>
+          {mode === 'login' ? <>
+          <label>
+            Email hoặc số điện thoại
+            <span className="input-wrap"><Mail size={18} /><input value={loginForm.identifier} onChange={(event) => updateLoginField('identifier', event.target.value)} placeholder="email@example.com hoặc 0901234567" autoComplete="username" /></span>
+            {errors.identifier && <small>{errors.identifier}</small>}
+          </label>
+          <label>
+            Mật khẩu
+            <span className="input-wrap"><LockKeyhole size={18} /><input type="password" value={loginForm.password} onChange={(event) => updateLoginField('password', event.target.value)} placeholder="Nhập mật khẩu" autoComplete="current-password" /></span>
+            {errors.password && <small>{errors.password}</small>}
+          </label>
+          </> : <>
           <label>
             Họ và tên
             <span className="input-wrap"><UserRound size={18} /><input value={form.fullName} onChange={(event) => updateField('fullName', event.target.value)} placeholder="Nguyễn Văn A" autoComplete="name" /></span>
@@ -122,12 +153,13 @@ function App() {
             <span className="input-wrap"><LockKeyhole size={18} /><input type="password" value={form.password} onChange={(event) => updateField('password', event.target.value)} placeholder="Tối thiểu 8 ký tự, gồm chữ và số" autoComplete="new-password" /></span>
             {errors.password && <small>{errors.password}</small>}
           </label>
+          </>}
           <button type="submit" disabled={loading}>
-            {loading ? 'Đang tạo tài khoản...' : 'Tạo tài khoản'}
+            {loading ? 'Đang xử lý...' : mode === 'register' ? 'Tạo tài khoản' : 'Đăng nhập'}
             {!loading && <ArrowRight size={18} />}
           </button>
         </form>
-        <p className="fine-print">Bằng cách tiếp tục, bạn đồng ý với điều khoản sử dụng của nền tảng.</p>
+        <p className="fine-print">{mode === 'register' ? 'Bằng cách tiếp tục, bạn đồng ý với điều khoản sử dụng của nền tảng.' : 'Chưa có tài khoản?'} <button type="button" className="link-button" onClick={() => { setMode(mode === 'register' ? 'login' : 'register'); setErrors({}); setServerError(''); }}>{mode === 'register' ? 'Đăng nhập' : 'Đăng ký ngay'}</button></p>
       </section>
     </main>
   );

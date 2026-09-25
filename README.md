@@ -61,6 +61,21 @@ Body JSON:
 }
 ```
 
+API đăng nhập bằng email hoặc số điện thoại:
+
+```text
+POST http://localhost:8080/api/auth/login
+```
+
+```json
+{
+  "identifier": "a@example.com",
+  "password": "MatKhau123"
+}
+```
+
+Sai thông tin đăng nhập trả HTTP `401` với mã `INVALID_CREDENTIALS`.
+
 Lỗi validation trả HTTP `400` với `fieldErrors`. Lỗi trùng email hoặc số điện
 thoại trả HTTP `409` với mã `DUPLICATE_FIELD`; frontend hiển thị lỗi đúng tại
 field tương ứng và không tạo tài khoản mới.
