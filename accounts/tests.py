@@ -259,7 +259,7 @@ class DangKyApiTests(TestCase):
         self.assertIn('mat_khau', field_errors)
         self.assertEqual(TaiKhoan.objects.count(), 0)
 
-    def test_dang_ky_api_trung_email_va_so_dien_thoai_tra_400(self):
+    def test_dang_ky_api_trung_email_va_so_dien_thoai_tra_409(self):
         TaiKhoan.objects.create_user(
             email='existing@example.com',
             so_dien_thoai='0911111111',
@@ -274,8 +274,10 @@ class DangKyApiTests(TestCase):
         }
         response = self.client.post(self.register_url, json.dumps(data), content_type='application/json')
 
-        self.assertEqual(response.status_code, 400)
-        field_errors = response.json()['field_errors']
+        self.assertEqual(response.status_code, 409)
+        body = response.json()
+        self.assertEqual(body['code'], 'DUPLICATE_FIELD')
+        field_errors = body['field_errors']
         self.assertIn('so_dien_thoai', field_errors)
         self.assertIn('email', field_errors)
         self.assertEqual(TaiKhoan.objects.count(), 1)

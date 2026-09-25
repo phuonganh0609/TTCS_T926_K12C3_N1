@@ -84,8 +84,23 @@ def api_register_view(request):
             field: [str(error) for error in errors]
             for field, errors in form.errors.items()
         }
+        duplicate_fields = {}
+        so_dien_thoai = str(data.get('so_dien_thoai', '')).strip()
+        email = str(data.get('email', '')).strip().lower()
+        if so_dien_thoai and TaiKhoan.objects.filter(so_dien_thoai=so_dien_thoai).exists():
+            duplicate_fields['so_dien_thoai'] = ['Số điện thoại này đã được sử dụng.']
+        if email and TaiKhoan.objects.filter(email=email).exists():
+            duplicate_fields['email'] = ['Email này đã được sử dụng.']
+        if duplicate_fields:
+            return JsonResponse({
+                'success': False,
+                'code': 'DUPLICATE_FIELD',
+                'error': 'Số điện thoại hoặc email đã được sử dụng.',
+                'field_errors': duplicate_fields,
+            }, status=409)
         return JsonResponse({
             'success': False,
+            'code': 'VALIDATION_ERROR',
             'error': 'Dữ liệu đăng ký không hợp lệ.',
             'field_errors': field_errors,
         }, status=400)
@@ -102,6 +117,7 @@ def api_register_view(request):
             field_errors['email'] = ['Email này đã được sử dụng.']
         return JsonResponse({
             'success': False,
+            'code': 'DUPLICATE_FIELD',
             'error': 'Thông tin đăng ký đã tồn tại.',
             'field_errors': field_errors,
         }, status=409)
