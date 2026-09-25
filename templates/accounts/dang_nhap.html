@@ -12,18 +12,35 @@
                         <i class="bi bi-box-arrow-in-right fs-2"></i>
                     </div>
                     <h2 class="fw-bold h4 mb-1">Đăng nhập</h2>
-                    <p class="text-muted small mb-0">Truy cập hệ thống quản lý phòng trọ</p>
+                    <p class="text-muted small mb-0">Hệ thống quản lý cho thuê phòng trọ</p>
                 </div>
 
-                {% if error_message %}
-                    <div class="alert alert-danger py-2 small mb-3">
-                        <i class="bi bi-exclamation-circle me-1"></i>{{ error_message }}
+                <!-- Cảnh báo khóa tài khoản chống brute-force (S1-02 Task 2) -->
+                <div id="lockoutAlert" class="alert alert-danger py-3 small mb-3 {% if not lock_seconds or lock_seconds <= 0 %}d-none{% endif %}" role="alert">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <i class="bi bi-shield-slash-fill fs-5 text-danger"></i>
+                        <strong class="text-danger">Tài khoản bị tạm khóa!</strong>
                     </div>
-                {% endif %}
+                    <div id="lockoutMessage">
+                        Tài khoản tạm thời bị khóa do nhập sai mật khẩu 5 lần. Vui lòng thử lại sau:
+                    </div>
+                    <div class="mt-2 text-center">
+                        <span id="countdownDisplay" class="badge bg-danger fs-6 px-3 py-2 font-monospace">
+                            --:--
+                        </span>
+                    </div>
+                </div>
 
-                <form method="post" novalidate>
+                <!-- Thông báo lỗi chung (S1-02 Task 1: không phân biệt sai tài khoản hay sai mật khẩu) -->
+                <div id="generalErrorAlert" class="alert alert-danger py-2 small mb-3 {% if not error_message or lock_seconds > 0 %}d-none{% endif %}">
+                    <i class="bi bi-exclamation-circle me-1"></i>
+                    <span id="generalErrorText">{{ error_message }}</span>
+                </div>
+
+                <form method="post" id="loginForm" novalidate>
                     {% csrf_token %}
 
+                    <!-- Ô nhập Email hoặc Số điện thoại -->
                     <div class="mb-3">
                         <label for="email_or_phone" class="form-label fw-semibold small">
                             Email hoặc Số điện thoại <span class="text-danger">*</span>
@@ -34,11 +51,14 @@
                                    name="email_or_phone"
                                    id="email_or_phone"
                                    class="form-control"
-                                   placeholder="Email hoặc 10 số ĐT"
+                                   placeholder="0912345678 hoặc email@domain.com"
+                                   value="{{ email_or_phone|default:'' }}"
+                                   autocomplete="username"
                                    required>
                         </div>
                     </div>
 
+                    <!-- Ô nhập Mật khẩu -->
                     <div class="mb-4">
                         <label for="mat_khau" class="form-label fw-semibold small">
                             Mật khẩu <span class="text-danger">*</span>
@@ -50,12 +70,17 @@
                                    id="mat_khau"
                                    class="form-control"
                                    placeholder="Nhập mật khẩu"
+                                   autocomplete="current-password"
                                    required>
+                            <button class="btn btn-outline-secondary" type="button" id="toggleLoginPassword" title="Ẩn/Hiện mật khẩu">
+                                <i class="bi bi-eye" id="toggleLoginPasswordIcon"></i>
+                            </button>
                         </div>
                     </div>
 
+                    <!-- Nút Đăng nhập -->
                     <div class="d-grid mb-3">
-                        <button type="submit" class="btn btn-primary py-2 fw-semibold shadow-sm">
+                        <button type="submit" class="btn btn-primary py-2 fw-semibold shadow-sm" id="btnLoginSubmit">
                             <i class="bi bi-box-arrow-in-right me-1"></i>Đăng nhập
                         </button>
                     </div>
@@ -64,11 +89,93 @@
                 <div class="text-center border-top pt-3 mt-2">
                     <span class="text-muted small">Chưa có tài khoản?</span>
                     <a href="{% url 'dang_ky' %}" class="text-primary small fw-semibold text-decoration-none ms-1">
-                        Đăng ký ngay
+                        Đăng ký khách thuê
                     </a>
                 </div>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const inputPass = document.getElementById('mat_khau');
+    const toggleBtn = document.getElementById('toggleLoginPassword');
+    const toggleIcon = document.getElementById('toggleLoginPasswordIcon');
+    const btnSubmit = document.getElementById('btnLoginSubmit');
+    const lockoutAlert = document.getElementById('lockoutAlert');
+    const countdownDisplay = document.getElementById('countdownDisplay');
+
+    // Ẩn / hiện mật khẩu
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', function () {
+            const isPassword = inputPass.getAttribute('type') === 'password';
+            inputPass.setAttribute('type', isPassword ? 'text' : 'password');
+            toggleIcon.classList.toggle('bi-eye', !isPassword);
+            toggleIcon.classList.toggle('bi-eye-slash', isPassword);
+        });
+    }
+
+    // Xử lý đếm ngược thời gian khóa tài khoản liên tục theo thời gian thực (S1-02 Task 2)
+    let remainingSeconds = parseInt("{{ lock_seconds|default:0 }}", 10);
+
+    function formatTime(totalSec) {
+        const m = Math.floor(totalSec / 60);
+        const s = totalSec % 60;
+        return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
+    if (remainingSeconds > 0) {
+        btnSubmit.disabled = true;
+        countdownDisplay.textContent = formatTime(remainingSeconds);
+
+        const timer = setInterval(function () {
+            remainingSeconds--;
+            if (remainingSeconds > 0) {
+                countdownDisplay.textContent = formatTime(remainingSeconds);
+            } else {
+                clearInterval(timer);
+                countdownDisplay.textContent = "00:00";
+                lockoutAlert.classList.add('d-none');
+                btnSubmit.disabled = false;
+                // Mở khóa tự động khi hết 15 phút
+            }
+        }, 1000);
+    }
+
+    // Tự động kiểm tra phiên và refresh token khi mở lại trang (S1-02 Task 1)
+    // Nếu refresh token còn hạn, tự động gọi đổi token và vào thẳng ứng dụng
+    const cookieString = document.cookie;
+    function getCookie(name) {
+        const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+        return match ? match[2] : null;
+    }
+
+    const refreshToken = getCookie('refresh_token');
+    const accessToken = getCookie('access_token');
+
+    // Nếu không có access_token nhưng còn refresh_token, tự động gọi đổi token
+    if (!accessToken && refreshToken) {
+        fetch('/api/auth/refresh/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ refresh_token: refreshToken })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.access_token) {
+                document.cookie = `access_token=${data.access_token}; max-age=${data.expires_in}; path=/`;
+                window.location.href = '/trang-chu/';
+            }
+        })
+        .catch(err => {
+            console.log('Phiên làm việc đã hết hạn.');
+        });
+    }
+});
+</script>
 {% endblock %}

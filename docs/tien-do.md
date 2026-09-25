@@ -29,8 +29,17 @@
 - Trang đích sau đăng nhập là `/trang-chu/` đóng vai trò dashboard tối thiểu cho khách thuê, hiển thị thông tin tài khoản và có nút đăng xuất.
 - Chưa tạo hồ sơ trong bảng `khach_thue` (được để lại cho giai đoạn sau theo chỉ dẫn tại `00-huong-dan.md`).
 
-## 3. Việc còn lại tiếp theo (Product Backlog)
-- **S1-02**: Đăng nhập và duy trì phiên làm việc cho Khách thuê (xử lý giới hạn khóa đăng nhập sai 5 lần/15 phút).
+## 3. S1-02 — Đăng nhập và duy trì phiên làm việc cho Khách thuê
+
+- **Trạng thái: hoàn thành các AC đăng nhập, khóa tạm thời và đăng xuất**:
+  - Đăng nhập bằng email/số điện thoại, token access 30 phút và refresh 7 ngày; cùng thông báo chung khi sai thông tin.
+  - Tự khóa sau 5 lần sai trong 15 phút, hiển thị đếm ngược và reset khi mở khóa/đăng nhập thành công.
+  - Đăng xuất thu hồi token, xóa cookie và kết thúc Django session.
+  - Django session được giới hạn 7 ngày; khi mở dashboard, access token hết hạn sẽ tự refresh. Refresh token hết hạn/không hợp lệ sẽ kết thúc session và chuyển về đăng nhập.
+  - Giao diện/luồng web lưu token trong cookie trình duyệt. API login/refresh cũng được cung cấp cho client.
+  - **Chưa có**: khóa tài khoản quản trị và luồng đăng xuất chủ động qua API trên client ngoài giao diện Django.
+
+## 4. Việc còn lại tiếp theo (Product Backlog)
 - **S1-03**: Quản trị hệ thống tạo và khóa tài khoản cho Chủ nhà cùng Quản lý tòa nhà.
 - **S1-04**: Phân quyền theo vai trò và ẩn hiện menu tương ứng.
 - **S1-05**: Đổi mật khẩu và lấy lại mật khẩu khi quên.

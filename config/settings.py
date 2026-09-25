@@ -133,6 +133,9 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 LOGIN_URL = 'dang_nhap'
 LOGIN_REDIRECT_URL = 'trang_chu'
 LOGOUT_REDIRECT_URL = 'dang_ky'
+# Giữ phiên trình duyệt tối đa bằng thời hạn refresh token của S1-02.
+SESSION_COOKIE_AGE = 7 * 24 * 60 * 60
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field

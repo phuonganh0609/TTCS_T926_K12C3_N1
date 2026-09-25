@@ -6,13 +6,13 @@
 - Frontend: Django Templates, HTML5, CSS3, JavaScript, Bootstrap 5.
 - Database: SQLite.
 - Mô hình đang chọn: 22 bảng nghiệp vụ trong 02-csdl.dbml.
-- Task hiện tại: chỉ hai phần đăng ký tài khoản S1-01, theo 03-task-dang-ky.md.
+- Task hiện tại: hoàn thiện story đăng nhập S1-02 theo yêu cầu mới nhất; S1-01 đã có trong mã nguồn.
 - Chưa có yêu cầu triển khai toàn bộ 22 bảng hoặc toàn bộ backlog.
 
 ## Thứ tự đọc
 
 1. Đọc hướng dẫn này.
-2. Đọc 03-task-dang-ky.md để xác định phạm vi hiện tại.
+2. Đọc docs/tien-do.md và yêu cầu S1-02 mới nhất để xác định phần còn thiếu.
 3. Đọc 02-csdl.md, tập trung tai_khoan và quan hệ với khach_thue.
 4. Đọc 01-yeu-cau-he-thong.md để hiểu toàn cảnh; định vị S1-01 trong trang Product Backlog.
 5. Kiểm tra mã nguồn thực tế trước khi sửa; nếu chưa có thì tạo nền tảng Django tối thiểu.
