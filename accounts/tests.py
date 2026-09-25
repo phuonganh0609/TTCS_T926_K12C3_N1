@@ -213,6 +213,74 @@ class DangKyTaiKhoanTests(TestCase):
         self.assertContains(response, 'submit')
 
 
+class DangKyApiTests(TestCase):
+    """Kiểm thử API đăng ký tài khoản khách thuê."""
+
+    def setUp(self):
+        self.client = Client()
+        self.register_url = reverse('api_register')
+
+    def test_dang_ky_api_hop_le_tra_token_va_luu_mat_khau_bam(self):
+        data = {
+            'ho_ten': 'Khách thuê API',
+            'so_dien_thoai': '0907654321',
+            'email': 'api@example.com',
+            'mat_khau': 'ApiPass123',
+        }
+        response = self.client.post(self.register_url, json.dumps(data), content_type='application/json')
+
+        self.assertEqual(response.status_code, 201)
+        body = response.json()
+        self.assertTrue(body['success'])
+        self.assertIn('access_token', body['tokens'])
+        self.assertIn('refresh_token', body['tokens'])
+        self.assertEqual(body['user']['vai_tro'], VaiTro.KHACH_THUE)
+
+        user = TaiKhoan.objects.get(email=data['email'])
+        self.assertNotEqual(user.password, data['mat_khau'])
+        self.assertTrue(user.check_password(data['mat_khau']))
+        self.assertEqual(PhienDangNhap.objects.filter(tai_khoan=user).count(), 1)
+        self.assertIn('access_token', response.cookies)
+        self.assertIn('refresh_token', response.cookies)
+
+    def test_dang_ky_api_tra_loi_validation_theo_tung_truong(self):
+        data = {
+            'ho_ten': 'Dữ liệu lỗi',
+            'so_dien_thoai': '123456789',
+            'email': 'invalid-email',
+            'mat_khau': '12345678',
+        }
+        response = self.client.post(self.register_url, json.dumps(data), content_type='application/json')
+
+        self.assertEqual(response.status_code, 400)
+        field_errors = response.json()['field_errors']
+        self.assertIn('so_dien_thoai', field_errors)
+        self.assertIn('email', field_errors)
+        self.assertIn('mat_khau', field_errors)
+        self.assertEqual(TaiKhoan.objects.count(), 0)
+
+    def test_dang_ky_api_trung_email_va_so_dien_thoai_tra_400(self):
+        TaiKhoan.objects.create_user(
+            email='existing@example.com',
+            so_dien_thoai='0911111111',
+            ho_ten='Tài khoản cũ',
+            password='Password123',
+        )
+        data = {
+            'ho_ten': 'Tài khoản mới',
+            'so_dien_thoai': '0911111111',
+            'email': 'existing@example.com',
+            'mat_khau': 'Password123',
+        }
+        response = self.client.post(self.register_url, json.dumps(data), content_type='application/json')
+
+        self.assertEqual(response.status_code, 400)
+        field_errors = response.json()['field_errors']
+        self.assertIn('so_dien_thoai', field_errors)
+        self.assertIn('email', field_errors)
+        self.assertEqual(TaiKhoan.objects.count(), 1)
+
+
 class DangNhapTokenTests(TestCase):
     """
     Bộ kiểm thử S1-02 Task 1 — Đăng nhập và duy trì phiên làm việc (Token JWT).

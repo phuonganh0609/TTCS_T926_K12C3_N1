@@ -64,6 +64,65 @@ def dang_ky_view(request):
     return render(request, 'accounts/dang_ky.html', {'form': form})
 
 
+@csrf_exempt
+def api_register_view(request):
+    """
+    POST /api/auth/register/
+    Tạo tài khoản khách thuê và trả về token để đăng nhập ngay.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Phương thức không được hỗ trợ.'}, status=405)
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        data = request.POST
+
+    form = DangKyForm(data)
+    if not form.is_valid():
+        field_errors = {
+            field: [str(error) for error in errors]
+            for field, errors in form.errors.items()
+        }
+        return JsonResponse({
+            'success': False,
+            'error': 'Dữ liệu đăng ký không hợp lệ.',
+            'field_errors': field_errors,
+        }, status=400)
+
+    try:
+        with transaction.atomic():
+            user = form.save()
+            tokens = create_tokens_for_user(user)
+    except IntegrityError:
+        field_errors = {}
+        if TaiKhoan.objects.filter(so_dien_thoai=form.cleaned_data['so_dien_thoai']).exists():
+            field_errors['so_dien_thoai'] = ['Số điện thoại này đã được sử dụng.']
+        if TaiKhoan.objects.filter(email=form.cleaned_data['email']).exists():
+            field_errors['email'] = ['Email này đã được sử dụng.']
+        return JsonResponse({
+            'success': False,
+            'error': 'Thông tin đăng ký đã tồn tại.',
+            'field_errors': field_errors,
+        }, status=409)
+
+    response = JsonResponse({
+        'success': True,
+        'message': 'Đăng ký thành công.',
+        'tokens': tokens,
+        'user': {
+            'id': user.id,
+            'ho_ten': user.ho_ten,
+            'email': user.email,
+            'so_dien_thoai': user.so_dien_thoai,
+            'vai_tro': user.vai_tro,
+        },
+    }, status=201)
+    response.set_cookie('access_token', tokens['access_token'], max_age=tokens['expires_in'], httponly=False, samesite='Lax')
+    response.set_cookie('refresh_token', tokens['refresh_token'], max_age=tokens['refresh_expires_in'], httponly=False, samesite='Lax')
+    return response
+
+
 def dang_nhap_view(request):
     """
     Màn hình đăng nhập khách thuê (S1-02).

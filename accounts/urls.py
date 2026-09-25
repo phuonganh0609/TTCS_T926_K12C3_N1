@@ -10,6 +10,7 @@ urlpatterns = [
     path('', views.dang_ky_view, name='home'),
 
     # API Endpoints cho Token và Bảo vệ phiên (S1-02)
+    path('api/auth/register/', views.api_register_view, name='api_register'),
     path('api/auth/login/', views.api_login_view, name='api_login'),
     path('api/auth/refresh/', views.api_refresh_view, name='api_refresh'),
     path('api/auth/logout/', views.api_logout_view, name='api_logout'),
