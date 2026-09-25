@@ -14,6 +14,13 @@ const initialLoginForm: LoginForm = {
   password: '',
 };
 
+const roleLabels: Record<string, string> = {
+  TENANT: 'Khách thuê',
+  LANDLORD: 'Chủ nhà',
+  BUILDING_MANAGER: 'Quản lý tòa nhà',
+  ADMIN: 'Quản trị viên',
+};
+
 const clientErrors = (form: RegisterForm): Record<string, string> => {
   const errors: Record<string, string> = {};
   if (!form.fullName.trim()) errors.fullName = 'Vui lòng nhập họ tên.';
@@ -89,7 +96,7 @@ function App() {
           <div className="profile-summary">
             <span>Email</span><strong>{dashboardUser.email}</strong>
             <span>Số điện thoại</span><strong>{dashboardUser.phone}</strong>
-            <span>Vai trò</span><strong>{dashboardUser.role}</strong>
+            <span>Vai trò</span><strong>{roleLabels[dashboardUser.role] ?? dashboardUser.role}</strong>
           </div>
         </section>
       </main>
