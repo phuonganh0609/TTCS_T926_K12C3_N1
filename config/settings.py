@@ -128,6 +128,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = '/static/'
+MEDIA_ROOT = BASE_DIR / 'private_media'
+# Không khai báo route public cho MEDIA_ROOT; ảnh đi qua view kiểm tra chủ hồ sơ.
 STATICFILES_DIRS = [BASE_DIR / 'static']
 
 LOGIN_URL = 'dang_nhap'

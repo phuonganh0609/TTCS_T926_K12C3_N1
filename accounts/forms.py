@@ -1,7 +1,80 @@
 import re
 from django import forms
 from django.core.exceptions import ValidationError
-from .models import TaiKhoan, VaiTro
+from .models import TaiKhoan, VaiTro, KhachThue
+from .profile_images import IMAGE_FIELDS, prepare_identity_image
+
+
+class IdentityImageField(forms.FileField):
+    def clean(self, data, initial=None):
+        value = super().clean(data, initial)
+        return prepare_identity_image(data) if data else value
+
+
+class HoSoKhachThueForm(forms.ModelForm):
+    anh_giay_to_truoc = IdentityImageField(
+        label='Ảnh mặt trước', required=False,
+        widget=forms.FileInput(attrs={'accept': '.jpg,.jpeg,.png,image/jpeg,image/png'}),
+    )
+    anh_giay_to_sau = IdentityImageField(
+        label='Ảnh mặt sau', required=False,
+        widget=forms.FileInput(attrs={'accept': '.jpg,.jpeg,.png,image/jpeg,image/png'}),
+    )
+    # Không tự xóa khoảng trắng hay ký tự sai trong số căn cước.
+    so_giay_to = forms.RegexField(
+        label='Số căn cước', regex=r'\A(?:[0-9]{9}|[0-9]{12})\Z', strip=False,
+        error_messages={
+            'required': 'Vui lòng nhập số căn cước.',
+            'invalid': 'Số căn cước chỉ được gồm 9 hoặc 12 chữ số.',
+        },
+        widget=forms.PasswordInput(render_value=False, attrs={
+            'inputmode': 'numeric', 'pattern': '[0-9]{9}|[0-9]{12}',
+            'aria-describedby': 'can-cuoc-help id_so_giay_to_errors',
+        }),
+    )
+
+    class Meta:
+        model = KhachThue
+        fields = ['ho_ten', 'ngay_sinh', 'so_giay_to', 'que_quan', 'nghe_nghiep', *IMAGE_FIELDS]
+        widgets = {
+            'ngay_sinh': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
+        }
+        error_messages = {
+            field: {'required': 'Vui lòng điền thông tin này.'}
+            for field in ['ho_ten', 'ngay_sinh', 'que_quan', 'nghe_nghiep']
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._saved_identity = self.instance.so_giay_to if self.instance.pk else ''
+        # Không đưa số cũ vào value, hidden field hoặc dữ liệu initial của form.
+        self.initial['so_giay_to'] = ''
+        if self._saved_identity:
+            self.fields['so_giay_to'].required = False
+            self.fields['so_giay_to'].help_text = 'Để trống để giữ số đã lưu. Chỉ nhập khi cần thay đổi.'
+        self.fields['so_giay_to'].widget.attrs['autocomplete'] = 'new-password'
+        self.fields['ngay_sinh'].input_formats = ['%Y-%m-%d']
+        self.fields['ngay_sinh'].error_messages['invalid'] = 'Ngày sinh không hợp lệ.'
+        for name, field in self.fields.items():
+            field.widget.attrs['class'] = 'form-control'
+            field.widget.attrs.setdefault('aria-describedby', f'id_{name}_errors')
+        if self.is_bound:
+            for name in self.errors:
+                if name in self.fields:
+                    self.fields[name].widget.attrs.update({
+                        'class': 'form-control is-invalid', 'aria-invalid': 'true',
+                    })
+
+    @property
+    def text_fields(self):
+        return [self[name] for name in self.fields if name not in IMAGE_FIELDS]
+
+    @property
+    def image_fields(self):
+        return [self[name] for name in IMAGE_FIELDS]
+
+    def clean_so_giay_to(self):
+        return self.cleaned_data['so_giay_to'] or self._saved_identity
 
 
 class DangKyForm(forms.Form):

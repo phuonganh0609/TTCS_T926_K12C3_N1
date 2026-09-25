@@ -1,0 +1,127 @@
+{% extends 'base_app.html' %}
+{% block title %}Hồ sơ cá nhân — Quản Lý Phòng Trọ{% endblock %}
+{% block page_title %}Hồ sơ cá nhân{% endblock %}
+{% block page_subtitle %}Khai báo và cập nhật thông tin của bạn.{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active" aria-current="page">Hồ sơ cá nhân</li>{% endblock %}
+{% block page_actions %}{% if profile_id %}<a class="btn btn-outline-primary" href="{% url 'xem_ho_so' profile_id %}">Xem hồ sơ đã lưu</a>{% endif %}{% endblock %}
+{% block content %}
+<section class="app-card bg-white p-3 p-md-4" style="max-width: 850px">
+    <h2 class="h5 mb-2">Thông tin khách thuê</h2>
+    <p class="text-muted small mb-4">Vui lòng điền đầy đủ các trường có dấu <span class="text-danger">*</span>.</p>
+    <form method="post" enctype="multipart/form-data" id="profileForm" novalidate>
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        <div class="row g-4">
+            {% for field in form.text_fields %}
+            <div class="{% if field.name == 'que_quan' %}col-12{% else %}col-12 col-md-6{% endif %}">
+                <label class="form-label fw-semibold" for="{{ field.id_for_label }}">{{ field.label }} {% if field.field.required %}<span class="text-danger" aria-hidden="true">*</span>{% endif %}</label>
+                {% if field.name == 'so_giay_to' and stored_identity %}<p class="small mb-2">Số đã lưu: <strong>{{ stored_identity }}</strong></p>{% endif %}
+                {{ field }}
+                {% if field.name == 'so_giay_to' %}<div id="can-cuoc-help" class="form-text">{% if stored_identity %}Để trống để giữ số đã lưu. Chỉ nhập khi cần thay đổi. {% endif %}Nhập đúng 9 hoặc 12 chữ số, giữ nguyên số 0 ở đầu.</div>{% endif %}
+                <div id="{{ field.id_for_label }}_errors" class="invalid-feedback{% if field.errors %} d-block{% endif %}" aria-live="polite">{% for error in field.errors %}{{ error }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>
+            </div>
+            {% endfor %}
+        </div>
+        <hr class="my-4">
+        <h2 class="h5">Ảnh giấy tờ</h2>
+        <p class="text-muted small">JPG hoặc PNG, tối đa 5MB mỗi ảnh. Ảnh rộng hơn 1600px sẽ được tự thu nhỏ khi lưu. Bạn có thể bổ sung từng mặt; chọn ảnh mới để thay ảnh đã lưu.</p>
+        {% if form.is_bound and form.errors %}<p class="text-warning">Ảnh mới chưa được lưu. Vui lòng chọn lại ảnh sau khi sửa lỗi.</p>{% endif %}
+        <div class="row g-4">
+            {% for field in form.image_fields %}
+            <div class="col-12 col-md-6">
+                <label class="form-label fw-semibold" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                <div id="{{ field.id_for_label }}_errors" class="invalid-feedback{% if field.errors %} d-block{% endif %}" aria-live="polite">{% for error in field.errors %}{{ error }}{% endfor %}</div>
+                {% if field.name == 'anh_giay_to_truoc' and saved_images.anh_giay_to_truoc %}
+                <img id="{{ field.id_for_label }}_preview" src="{% url 'anh_giay_to' 'truoc' %}" alt="Ảnh mặt trước đã lưu" class="img-fluid rounded border mt-3" style="max-height:260px;object-fit:contain">
+                {% elif field.name == 'anh_giay_to_sau' and saved_images.anh_giay_to_sau %}
+                <img id="{{ field.id_for_label }}_preview" src="{% url 'anh_giay_to' 'sau' %}" alt="Ảnh mặt sau đã lưu" class="img-fluid rounded border mt-3" style="max-height:260px;object-fit:contain">
+                {% else %}
+                <img id="{{ field.id_for_label }}_preview" alt="Xem trước {{ field.label|lower }}" class="img-fluid rounded border mt-3" style="max-height:260px;object-fit:contain" hidden>
+                {% endif %}
+                <p id="{{ field.id_for_label }}_status" class="small text-muted mt-2" aria-live="polite"></p>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="mt-4"><button class="btn btn-primary px-4" type="submit">Lưu hồ sơ</button></div>
+    </form>
+</section>
+{% endblock %}
+{% block extra_js %}
+<script>
+(() => {
+    const form = document.getElementById('profileForm');
+    const identity = document.getElementById('id_so_giay_to');
+    function validate(field) {
+        let message = '';
+        if (field === identity) {
+            if (!field.value && !field.required) message = '';
+            else if (!field.value) message = 'Vui lòng nhập số căn cước.';
+            else if (!/^(?:[0-9]{9}|[0-9]{12})$/.test(field.value))
+                message = 'Số căn cước chỉ được gồm 9 hoặc 12 chữ số.';
+        } else if (!field.value.trim()) {
+            message = 'Vui lòng điền thông tin này.';
+        } else if (!field.validity.valid) {
+            message = 'Thông tin không hợp lệ. Vui lòng kiểm tra lại.';
+        }
+        const errors = document.getElementById(field.id + '_errors');
+        errors.textContent = message;
+        errors.classList.toggle('d-block', Boolean(message));
+        field.classList.toggle('is-invalid', Boolean(message));
+        field.setAttribute('aria-invalid', String(Boolean(message)));
+        return !message;
+    }
+    const fields = Array.from(form.querySelectorAll('input:not([type="hidden"]):not([type="file"])'));
+    const imageFields = Array.from(form.querySelectorAll('input[type="file"]'));
+    function validateImage(field) {
+        const file = field.files[0];
+        let message = '';
+        if (file && !/\.(jpe?g|png)$/i.test(file.name)) message = 'Chỉ chấp nhận ảnh JPG hoặc PNG.';
+        else if (file && file.size > 5 * 1024 * 1024) message = 'Mỗi ảnh không được vượt quá 5MB.';
+        const errors = document.getElementById(field.id + '_errors');
+        errors.textContent = message;
+        errors.classList.toggle('d-block', Boolean(message));
+        field.classList.toggle('is-invalid', Boolean(message));
+        field.setAttribute('aria-invalid', String(Boolean(message)));
+        return !message;
+    }
+    imageFields.forEach(field => {
+        const preview = document.getElementById(field.id + '_preview');
+        const status = document.getElementById(field.id + '_status');
+        const savedUrl = preview.getAttribute('src');
+        let localUrl = null;
+        field.addEventListener('change', () => {
+            if (localUrl) URL.revokeObjectURL(localUrl);
+            localUrl = null;
+            preview.hidden = !savedUrl;
+            if (savedUrl) preview.src = savedUrl;
+            else preview.removeAttribute('src');
+            status.textContent = '';
+            if (validateImage(field) && field.files[0]) {
+                localUrl = URL.createObjectURL(field.files[0]);
+                preview.src = localUrl;
+                preview.alt = 'Xem trước ảnh mới chọn';
+                preview.hidden = false;
+                status.textContent = 'Ảnh mới chọn — bấm Lưu hồ sơ để lưu thay đổi.';
+            }
+        });
+        preview.addEventListener('error', () => {
+            if (localUrl) {
+                preview.hidden = true;
+                status.textContent = 'Không thể xem trước tệp này. Vui lòng chọn ảnh JPG hoặc PNG hợp lệ.';
+            }
+        });
+    });
+    fields.forEach(field => field.addEventListener('blur', () => validate(field)));
+    identity.addEventListener('input', () => validate(identity));
+    form.addEventListener('submit', event => {
+        const invalid = fields.filter(field => !validate(field));
+        invalid.push(...imageFields.filter(field => !validateImage(field)));
+        if (invalid.length) {
+            event.preventDefault();
+            invalid[0].focus();
+        }
+    });
+})();
+</script>
+{% endblock %}

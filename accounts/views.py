@@ -1,19 +1,111 @@
 import json
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import JsonResponse
+from django.http import JsonResponse, FileResponse, Http404
+from django.core.exceptions import PermissionDenied
+from django.views.decorators.http import require_http_methods
+from django.views.decorators.debug import sensitive_post_parameters
 from django.views.decorators.csrf import csrf_exempt
-from django.db import transaction, IntegrityError
-from .forms import DangKyForm
-from .models import TaiKhoan
+from django.db import transaction, IntegrityError, DatabaseError
+from .forms import DangKyForm, HoSoKhachThueForm
+from .models import TaiKhoan, KhachThue, VaiTro
+from .profile_images import IMAGE_FIELDS, save_profile
+from .profile_permissions import profile_for_display, mask_identity, can_view_identity_images
 from .tokens import (
     create_tokens_for_user,
     verify_access_token,
     refresh_access_token,
     revoke_tokens,
 )
+
+
+@sensitive_post_parameters('so_giay_to')
+@login_required
+@require_http_methods(['GET', 'POST'])
+def ho_so_view(request):
+    if request.user.vai_tro != VaiTro.KHACH_THUE:
+        raise PermissionDenied
+
+    ho_so = KhachThue.objects.filter(tai_khoan=request.user).first()
+    stored_identity = mask_identity(ho_so.so_giay_to) if ho_so else ''
+    saved_images = {name: bool(getattr(ho_so, name)) if ho_so else False for name in IMAGE_FIELDS}
+    form = HoSoKhachThueForm(
+        request.POST if request.method == 'POST' else None,
+        request.FILES if request.method == 'POST' else None,
+        instance=ho_so,
+        initial={'ho_ten': request.user.ho_ten} if ho_so is None else None,
+    )
+    if request.method == 'POST' and form.is_valid():
+        # Chủ sở hữu luôn lấy từ session, không lấy ID từ dữ liệu gửi lên.
+        try:
+            save_profile(request.user, form.cleaned_data)
+        except (OSError, DatabaseError):
+            form.add_error(None, 'Không thể lưu hồ sơ lúc này. Vui lòng chọn lại ảnh và thử lại.')
+        else:
+            messages.success(request, 'Đã lưu hồ sơ cá nhân thành công.')
+            return redirect('ho_so')
+    response = render(request, 'accounts/ho_so.html', {
+        'form': form, 'active_nav': 'ho_so', 'saved_images': saved_images,
+        'stored_identity': stored_identity, 'profile_id': ho_so.pk if ho_so else None,
+    })
+    response['Cache-Control'] = 'no-store'
+    return response
+
+
+@login_required
+@require_http_methods(['GET'])
+def xem_ho_so_view(request, pk):
+    profile = get_object_or_404(KhachThue, pk=pk)
+    response = render(request, 'accounts/xem_ho_so.html', {
+        'profile': profile_for_display(request.user, profile), 'active_nav': 'ho_so_xem',
+    })
+    response['Cache-Control'] = 'private, no-store'
+    return response
+
+
+@login_required
+@require_http_methods(['GET'])
+def danh_sach_ho_so_view(request):
+    if request.user.vai_tro not in (VaiTro.ADMIN, VaiTro.CHU_NHA, VaiTro.QUAN_LY):
+        raise PermissionDenied
+    # Danh sách chỉ chứa tên và ID; số căn cước được phân quyền tại trang chi tiết.
+    from django.core.paginator import Paginator
+    page = Paginator(KhachThue.objects.order_by('ho_ten', 'pk').values('pk', 'ho_ten'), 20)
+    response = render(request, 'accounts/danh_sach_ho_so.html', {
+        'page': page.get_page(request.GET.get('page')), 'active_nav': 'ho_so_xem',
+    })
+    response['Cache-Control'] = 'private, no-store'
+    return response
+
+
+@login_required
+@require_http_methods(['GET'])
+def anh_giay_to_view(request, mat, pk=None):
+    if pk is None:
+        if request.user.vai_tro != VaiTro.KHACH_THUE:
+            raise PermissionDenied
+        profile = get_object_or_404(KhachThue, tai_khoan=request.user)
+    else:
+        profile = get_object_or_404(KhachThue, pk=pk)
+    if not can_view_identity_images(request.user, profile):
+        raise PermissionDenied
+    fields = {'truoc': 'anh_giay_to_truoc', 'sau': 'anh_giay_to_sau'}
+    if mat not in fields:
+        raise Http404
+    picture = getattr(profile, fields[mat]) if profile else None
+    if not picture:
+        raise Http404
+    try:
+        response = FileResponse(picture.open('rb'), content_type=(
+            'image/png' if picture.name.lower().endswith('.png') else 'image/jpeg'
+        ))
+    except FileNotFoundError:
+        raise Http404
+    response['Cache-Control'] = 'private, no-store'
+    response['X-Content-Type-Options'] = 'nosniff'
+    return response
 
 
 def dang_ky_view(request):

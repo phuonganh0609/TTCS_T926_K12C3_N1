@@ -63,8 +63,14 @@
     <div class="app-layout d-flex">
         <aside class="app-sidebar flex-shrink-0 py-3" id="appSidebar" aria-label="Menu chức năng">
             <div class="app-nav-label">Không gian làm việc</div>
+            {% if user.vai_tro == 'KHACH_THUE' %}
+            <a class="app-nav-link {% if active_nav == 'ho_so' %}active{% endif %}" href="{% url 'ho_so' %}"><i class="bi bi-person-vcard"></i><span>Hồ sơ cá nhân</span></a>
+            {% endif %}
             <a class="app-nav-link {% if active_nav == 'dashboard' %}active{% endif %}" href="{% url 'trang_chu' %}"><i class="bi bi-grid-1x2"></i><span>Tổng quan</span></a>
             <div class="app-nav-label">Quản lý cho thuê</div>
+            {% if user.vai_tro == 'ADMIN' or user.vai_tro == 'CHU_NHA' or user.vai_tro == 'QUAN_LY' %}
+            <a class="app-nav-link {% if active_nav == 'ho_so_xem' %}active{% endif %}" href="{% url 'danh_sach_ho_so' %}"><i class="bi bi-person-vcard"></i><span>Hồ sơ khách thuê</span></a>
+            {% endif %}
             <a class="app-nav-link disabled" href="#" aria-disabled="true" title="Chức năng sẽ được nối khi module hoàn thành"><i class="bi bi-buildings"></i><span>Tòa nhà</span><span class="badge text-bg-light ms-auto">Sắp có</span></a>
             <a class="app-nav-link disabled" href="#" aria-disabled="true" title="Chức năng sẽ được nối khi module hoàn thành"><i class="bi bi-door-open"></i><span>Phòng trọ</span></a>
             <a class="app-nav-link disabled" href="#" aria-disabled="true" title="Chức năng sẽ được nối khi module hoàn thành"><i class="bi bi-people"></i><span>Khách thuê</span></a>

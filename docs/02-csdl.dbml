@@ -74,6 +74,7 @@ Table khach_thue {
   anh_giay_to_truoc varchar(500)
   anh_giay_to_sau varchar(500)
   dia_chi_thuong_tru text
+  que_quan varchar(255) [note: 'Quê quán, trường riêng theo S1-06; không đồng nhất địa chỉ thường trú.']
   nghe_nghiep varchar(150)
   so_dien_thoai varchar(15)
   email varchar(254)

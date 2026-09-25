@@ -6,13 +6,13 @@
 - Frontend: Django Templates, HTML5, CSS3, JavaScript, Bootstrap 5.
 - Database: SQLite.
 - Mô hình đang chọn: 22 bảng nghiệp vụ trong 02-csdl.dbml.
-- Task hiện tại: hoàn thiện story đăng nhập S1-02 theo yêu cầu mới nhất; S1-01 đã có trong mã nguồn.
+- Phạm vi mới nhất: S1-06 gồm thông tin, ảnh hai mặt và phân quyền căn cước theo vai trò/quan hệ thuê hiện tại. PO đã chốt dấu * thay từng số bị che, giữ 4 số cuối. Xem `03-task-ho-so.md` và tiến độ; mỗi phiên phải xác định lại task từ yêu cầu mới nhất.
 - Chưa có yêu cầu triển khai toàn bộ 22 bảng hoặc toàn bộ backlog.
 
 ## Thứ tự đọc
 
 1. Đọc hướng dẫn này.
-2. Đọc docs/tien-do.md và yêu cầu S1-02 mới nhất để xác định phần còn thiếu.
+2. Đọc docs/tien-do.md và đặc tả liên quan đến yêu cầu mới nhất để xác định phạm vi.
 3. Đọc 02-csdl.md, tập trung tai_khoan và quan hệ với khach_thue.
 4. Đọc 01-yeu-cau-he-thong.md để hiểu toàn cảnh; định vị S1-01 trong trang Product Backlog.
 5. Kiểm tra mã nguồn thực tế trước khi sửa; nếu chưa có thì tạo nền tảng Django tối thiểu.
@@ -24,7 +24,7 @@ Không cần đọc Excel vì nội dung các ô đã được chuyển sang 01-
 ## Xử lý khác biệt với nguồn Excel
 
 File 01 giữ nguyên nội dung nguồn, kể cả stack React/Spring Boot/PostgreSQL và yêu cầu JWT.
-Các công nghệ đó đã được người dùng thay bằng Django Templates/SQLite/Django session.
+Stack hiện hành là Django Templates/SQLite. Mã S1-02 hiện có cả Django session và JWT; bảo toàn luồng hiện có khi làm task khác.
 Không tự chuyển dự án trở lại stack cũ. Không lấy thiết kế PostgreSQL 40 bảng trước đây làm CSDL hiện hành.
 
 Thứ tự ưu tiên: yêu cầu trực tiếp mới nhất > task hiện tại > DBML 22 bảng > nguồn Excel tổng thể.
@@ -36,11 +36,11 @@ trong tài liệu nếu nó trái với yêu cầu trực tiếp của người 
 - Đọc và tóm tắt hiểu biết ngắn gọn, sau đó thực hiện task; không dừng ở kế hoạch.
 - Với dự án mới, thiết kế custom User và AUTH_USER_MODEL trước lần migrate đầu tiên.
 - Không xóa dữ liệu/migrations hiện có để tránh xử lý lỗi.
-- Chỉ tạo các bảng/thành phần cần cho task đăng ký và hạ tầng Django.
-- Không tự triển khai quản lý phòng, hợp đồng, hóa đơn hoặc thanh toán.
+- Chỉ tạo các bảng/thành phần cần cho task được giao và hạ tầng Django.
+- S1-06 task 3 bổ sung quan hệ tối thiểu tòa nhà/phòng/hợp đồng/kỳ thuê để xác định quyền; chưa triển khai đầy đủ quản lý phòng, hợp đồng, hóa đơn hoặc thanh toán.
 - Mọi mật khẩu do Django băm/kiểm tra; không lưu rõ, không log mật khẩu.
 - Kiểm tra backend dù đã kiểm tra JavaScript; có CSRF.
 - Thay đổi cần có kiểm thử và hướng dẫn chạy. Nêu đúng bước đã chạy, không tự nhận kiểm thử thành công.
 - Khi kết thúc, ghi phạm vi đã hoàn thành, giả định và việc còn lại vào docs/tien-do.md.
 
-Đây là bộ tài liệu bàn giao, không có mã ứng dụng hoặc migration đã triển khai.
+Đã có mã Django và migrations trong `accounts`; không khởi tạo lại dự án hoặc CSDL.

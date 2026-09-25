@@ -1,0 +1,25 @@
+{% extends 'base_app.html' %}
+{% block title %}Xem hồ sơ — Quản Lý Phòng Trọ{% endblock %}
+{% block page_title %}Hồ sơ khách thuê{% endblock %}
+{% block page_subtitle %}Thông tin được hiển thị theo quyền của tài khoản đang xem.{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active" aria-current="page">Xem hồ sơ</li>{% endblock %}
+{% block content %}
+<section class="app-card bg-white p-3 p-md-4" style="max-width:850px">
+    <h2 class="h5 mb-4">{{ profile.ho_ten }}</h2>
+    <dl class="row">
+        <dt class="col-sm-4">Ngày sinh</dt><dd class="col-sm-8">{{ profile.ngay_sinh|date:'d/m/Y' }}</dd>
+        <dt class="col-sm-4">Số căn cước</dt><dd class="col-sm-8" id="identity-number">{{ profile.so_giay_to }}</dd>
+        <dt class="col-sm-4">Quê quán</dt><dd class="col-sm-8">{{ profile.que_quan }}</dd>
+        <dt class="col-sm-4">Nghề nghiệp</dt><dd class="col-sm-8">{{ profile.nghe_nghiep }}</dd>
+    </dl>
+    {% if not profile.can_view_full_identity %}<p class="text-muted small">Số căn cước chỉ hiển thị 4 chữ số cuối theo quyền của bạn.</p>{% endif %}
+    {% if profile.images_allowed %}
+    <h3 class="h6 mt-4">Ảnh giấy tờ</h3>
+    <div class="row g-3">
+        <div class="col-12 col-md-6"><p>Ảnh mặt trước</p>{% if profile.anh_truoc %}<img src="{{ profile.anh_truoc }}" alt="Ảnh mặt trước đã lưu" class="img-fluid rounded border" style="max-height:260px;object-fit:contain">{% else %}<p class="text-muted">Chưa tải ảnh.</p>{% endif %}</div>
+        <div class="col-12 col-md-6"><p>Ảnh mặt sau</p>{% if profile.anh_sau %}<img src="{{ profile.anh_sau }}" alt="Ảnh mặt sau đã lưu" class="img-fluid rounded border" style="max-height:260px;object-fit:contain">{% else %}<p class="text-muted">Chưa tải ảnh.</p>{% endif %}</div>
+    </div>
+    {% endif %}
+    {% if profile.can_edit %}<a class="btn btn-primary mt-4" href="{% url 'ho_so' %}">Chỉnh sửa hồ sơ</a>{% endif %}
+</section>
+{% endblock %}
