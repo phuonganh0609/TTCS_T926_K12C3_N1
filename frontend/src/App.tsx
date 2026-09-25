@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { ArrowRight, CheckCircle2, LockKeyhole, Mail, Phone, UserRound } from 'lucide-react';
-import { registerTenant, RegisterForm } from './api';
+import { registerTenant, RegisterForm, RegisterResponse } from './api';
 
 const initialForm: RegisterForm = {
   fullName: '',
@@ -26,6 +26,7 @@ function App() {
   const [serverError, setServerError] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [dashboardUser, setDashboardUser] = useState<RegisterResponse['user'] | null>(null);
 
   const updateField = (field: keyof RegisterForm, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -48,6 +49,8 @@ function App() {
       localStorage.setItem('refreshToken', response.refreshToken);
       setSuccess(true);
       setForm(initialForm);
+      window.history.replaceState({}, '', '/trang-chu');
+      window.setTimeout(() => setDashboardUser(response.user), 700);
     } catch (error) {
       const apiError = error as Error & { fieldErrors?: Record<string, string> };
       setServerError(apiError.message);
@@ -56,6 +59,23 @@ function App() {
       setLoading(false);
     }
   };
+
+  if (dashboardUser) {
+    return (
+      <main className="shell dashboard-shell">
+        <section className="dashboard-card" aria-labelledby="dashboard-title">
+          <p className="eyebrow">ĐĂNG NHẬP THÀNH CÔNG</p>
+          <h1 id="dashboard-title">Chào mừng, {dashboardUser.fullName}.</h1>
+          <p className="intro-copy">Tài khoản khách thuê của bạn đã sẵn sàng để bắt đầu tìm căn phòng phù hợp.</p>
+          <div className="profile-summary">
+            <span>Email</span><strong>{dashboardUser.email}</strong>
+            <span>Số điện thoại</span><strong>{dashboardUser.phone}</strong>
+            <span>Vai trò</span><strong>{dashboardUser.role}</strong>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="shell">

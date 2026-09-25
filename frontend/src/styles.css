@@ -48,6 +48,10 @@ button:disabled { cursor: wait; opacity: 0.65; }
 .alert.success { color: #275b4c; background: #e2f1e9; }
 .alert.error { color: #883d38; background: #fae6df; }
 .fine-print { margin: 22px 0 0; color: #78908f; font-size: 0.74rem; line-height: 1.5; }
+.dashboard-shell { display: grid; place-items: center; }
+.dashboard-card { width: min(100%, 720px); padding: clamp(30px, 6vw, 72px); border: 1px solid rgba(23, 63, 95, 0.1); background: rgba(255, 255, 255, 0.82); box-shadow: 0 24px 80px rgba(45, 64, 63, 0.13); }
+.profile-summary { display: grid; grid-template-columns: 150px 1fr; gap: 14px 20px; margin-top: 36px; padding-top: 24px; border-top: 1px solid #d7e0dc; color: #6b8582; }
+.profile-summary strong { color: #173f5f; }
 
 @media (max-width: 850px) {
   .shell { grid-template-columns: 1fr; gap: 40px; padding: 36px 22px; }
