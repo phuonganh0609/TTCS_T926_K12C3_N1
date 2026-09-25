@@ -33,7 +33,7 @@ pip install -r requirements.txt
 python manage.py migrate
 ```
 
-### Bước 4: Chạy kiểm thử tự động (14 test cases)
+### Bước 4: Chạy kiểm thử tự động (36 test cases)
 ```powershell
 python manage.py test accounts -v 2
 ```
@@ -47,6 +47,38 @@ Truy cập trình duyệt tại:
 - Trang đăng nhập: `http://127.0.0.1:8000/dang-nhap/`
 - Trang chủ / Dashboard: `http://127.0.0.1:8000/trang-chu/`
 - Trang quản trị: `http://127.0.0.1:8000/admin/`
+
+### Demo API đăng ký
+
+Gửi request `POST` tới `http://127.0.0.1:8000/api/auth/register/` với header
+`Content-Type: application/json`:
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -Uri http://127.0.0.1:8000/api/auth/register/ `
+  -ContentType 'application/json' `
+  -Body '{"ho_ten":"Nguyen Van A","so_dien_thoai":"0901234567","email":"a@example.com","mat_khau":"MatKhau123"}'
+```
+
+Request hợp lệ trả về HTTP `201`, thông tin tài khoản, `access_token` và
+`refresh_token`. Có thể dùng access token để gọi API thông tin tài khoản:
+
+```powershell
+$response = Invoke-RestMethod `
+  -Method Post `
+  -Uri http://127.0.0.1:8000/api/auth/register/ `
+  -ContentType 'application/json' `
+  -Body '{"ho_ten":"Nguyen Van B","so_dien_thoai":"0901234568","email":"b@example.com","mat_khau":"MatKhau123"}'
+
+Invoke-RestMethod `
+  -Method Get `
+  -Uri http://127.0.0.1:8000/api/auth/me/ `
+  -Headers @{ Authorization = "Bearer $($response.tokens.access_token)" }
+```
+
+Nếu dữ liệu không hợp lệ, API trả HTTP `400` và lỗi theo từng trường trong
+`field_errors`.
 
 ---
 
