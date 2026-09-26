@@ -23,38 +23,51 @@ Nhánh `feature/tenant-self-registration-spring-react` triển khai lại chức
 Nhánh này đã push lên GitHub nhưng **chưa merge vào `dev`**. Các thay đổi cũ
 trên nhánh `feature/tenant-self-registration` vẫn được giữ nguyên.
 
-### Chạy PostgreSQL
+### Chạy nhanh trên Windows
 
-Cần cài Docker Desktop, bảo đảm Docker Engine đang chạy, sau đó chạy:
+Yêu cầu: Docker Desktop đang mở, Java 17, Maven 3.9+ và Node.js 20+.
+Các đường dẫn Java/Maven dưới đây là vị trí trên máy phát triển hiện tại; nếu
+máy khác cài ở nơi khác thì sửa `JAVA_HOME` và `Path` tương ứng.
+
+Mở PowerShell thứ nhất tại thư mục gốc repository:
+
+```powershell
+docker compose up -d postgres
+$env:JAVA_HOME = "D:\DevTools\Java\temurin-17.0.20.1+1"
+$env:MAVEN_OPTS = "-Dmaven.repo.local=D:\DevCache\m2"
+$env:Path = "D:\DevTools\Maven\apache-maven-3.9.9\bin;$env:Path"
+Set-Location backend
+mvn test
+mvn spring-boot:run
+```
+
+Mở PowerShell thứ hai tại thư mục gốc repository:
+
+```powershell
+Set-Location frontend
+npm install
+npm run dev -- --host 127.0.0.1
+```
+
+Mở URL Vite được in trong terminal, thường là `http://127.0.0.1:5173/`.
+Nếu cổng đó đang bận, Vite sẽ chọn cổng tiếp theo, thường là `5174`.
+
+### Các lệnh riêng
+
+Chạy PostgreSQL (Docker Engine phải đang chạy):
 
 ```powershell
 docker compose up -d postgres
 ```
 
-### Chạy backend
-
-Yêu cầu Java 17 và Maven 3.9+:
+Chạy backend test bằng H2, không cần PostgreSQL:
 
 ```powershell
-cd backend
+Set-Location backend
 mvn test
-mvn spring-boot:run
 ```
 
 Backend chạy tại `http://localhost:8080`.
-
-### Chạy frontend
-
-Mở terminal thứ hai:
-
-```powershell
-cd frontend
-npm install
-npm run dev
-```
-
-Mở URL Vite in trong terminal, thường là `http://localhost:5173`. Nếu port
-`5173` đang bận, Vite sẽ tự chuyển sang `http://localhost:5174`.
 
 API đăng ký:
 
