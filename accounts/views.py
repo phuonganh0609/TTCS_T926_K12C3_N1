@@ -1,19 +1,116 @@
-from django.shortcuts import render, redirect
-from django.contrib.auth import login, logout, authenticate
+import json
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.db import transaction, IntegrityError
-from .forms import DangKyForm
-from .models import TaiKhoan
+from django.http import JsonResponse, FileResponse, Http404
+from django.core.exceptions import PermissionDenied
+from django.views.decorators.http import require_http_methods
+from django.views.decorators.debug import sensitive_post_parameters
+from django.views.decorators.csrf import csrf_exempt
+from django.db import transaction, IntegrityError, DatabaseError
+from .forms import DangKyForm, HoSoKhachThueForm
+from .models import TaiKhoan, KhachThue, VaiTro
+from .profile_images import IMAGE_FIELDS, save_profile
+from .profile_permissions import profile_for_display, mask_identity, can_view_identity_images
+from .tokens import (
+    create_tokens_for_user,
+    verify_access_token,
+    refresh_access_token,
+    revoke_tokens,
+)
+
+
+@sensitive_post_parameters('so_giay_to')
+@login_required
+@require_http_methods(['GET', 'POST'])
+def ho_so_view(request):
+    if request.user.vai_tro != VaiTro.KHACH_THUE:
+        raise PermissionDenied
+
+    ho_so = KhachThue.objects.filter(tai_khoan=request.user).first()
+    stored_identity = mask_identity(ho_so.so_giay_to) if ho_so else ''
+    saved_images = {name: bool(getattr(ho_so, name)) if ho_so else False for name in IMAGE_FIELDS}
+    form = HoSoKhachThueForm(
+        request.POST if request.method == 'POST' else None,
+        request.FILES if request.method == 'POST' else None,
+        instance=ho_so,
+        initial={'ho_ten': request.user.ho_ten} if ho_so is None else None,
+    )
+    if request.method == 'POST' and form.is_valid():
+        # Chủ sở hữu luôn lấy từ session, không lấy ID từ dữ liệu gửi lên.
+        try:
+            save_profile(request.user, form.cleaned_data)
+        except (OSError, DatabaseError):
+            form.add_error(None, 'Không thể lưu hồ sơ lúc này. Vui lòng chọn lại ảnh và thử lại.')
+        else:
+            messages.success(request, 'Đã lưu hồ sơ cá nhân thành công.')
+            return redirect('ho_so')
+    response = render(request, 'accounts/ho_so.html', {
+        'form': form, 'active_nav': 'ho_so', 'saved_images': saved_images,
+        'stored_identity': stored_identity, 'profile_id': ho_so.pk if ho_so else None,
+    })
+    response['Cache-Control'] = 'no-store'
+    return response
+
+
+@login_required
+@require_http_methods(['GET'])
+def xem_ho_so_view(request, pk):
+    profile = get_object_or_404(KhachThue, pk=pk)
+    response = render(request, 'accounts/xem_ho_so.html', {
+        'profile': profile_for_display(request.user, profile), 'active_nav': 'ho_so_xem',
+    })
+    response['Cache-Control'] = 'private, no-store'
+    return response
+
+
+@login_required
+@require_http_methods(['GET'])
+def danh_sach_ho_so_view(request):
+    if request.user.vai_tro not in (VaiTro.ADMIN, VaiTro.CHU_NHA, VaiTro.QUAN_LY):
+        raise PermissionDenied
+    # Danh sách chỉ chứa tên và ID; số căn cước được phân quyền tại trang chi tiết.
+    from django.core.paginator import Paginator
+    page = Paginator(KhachThue.objects.order_by('ho_ten', 'pk').values('pk', 'ho_ten'), 20)
+    response = render(request, 'accounts/danh_sach_ho_so.html', {
+        'page': page.get_page(request.GET.get('page')), 'active_nav': 'ho_so_xem',
+    })
+    response['Cache-Control'] = 'private, no-store'
+    return response
+
+
+@login_required
+@require_http_methods(['GET'])
+def anh_giay_to_view(request, mat, pk=None):
+    if pk is None:
+        if request.user.vai_tro != VaiTro.KHACH_THUE:
+            raise PermissionDenied
+        profile = get_object_or_404(KhachThue, tai_khoan=request.user)
+    else:
+        profile = get_object_or_404(KhachThue, pk=pk)
+    if not can_view_identity_images(request.user, profile):
+        raise PermissionDenied
+    fields = {'truoc': 'anh_giay_to_truoc', 'sau': 'anh_giay_to_sau'}
+    if mat not in fields:
+        raise Http404
+    picture = getattr(profile, fields[mat]) if profile else None
+    if not picture:
+        raise Http404
+    try:
+        response = FileResponse(picture.open('rb'), content_type=(
+            'image/png' if picture.name.lower().endswith('.png') else 'image/jpeg'
+        ))
+    except FileNotFoundError:
+        raise Http404
+    response['Cache-Control'] = 'private, no-store'
+    response['X-Content-Type-Options'] = 'nosniff'
+    return response
 
 
 def dang_ky_view(request):
     """
     Xử lý hiển thị biểu mẫu và tiếp nhận đăng ký tài khoản khách thuê (S1-01).
-    - Tạo tài khoản hợp lệ, băm mật khẩu bằng BCrypt, gán vai trò Khách thuê.
-    - Ngăn trùng lặp số điện thoại và email với thông báo tương ứng.
-    - Bắt IntegrityError tránh lỗi 500 khi có tranh chấp đồng thời tại DB.
-    - Tự động đăng nhập và chuyển hướng tới trang đích sau khi thành công.
     """
     if request.user.is_authenticated:
         return redirect('trang_chu')
@@ -27,8 +124,15 @@ def dang_ky_view(request):
 
                 # Tự động đăng nhập bằng Django session
                 login(request, user)
+                tokens = create_tokens_for_user(user)
+
                 messages.success(request, 'Đăng ký thành công.')
-                return redirect('trang_chu')
+                response = redirect('trang_chu')
+
+                # Lưu token vào cookie để hỗ trợ duy trì phiên
+                response.set_cookie('access_token', tokens['access_token'], max_age=1800, httponly=False)
+                response.set_cookie('refresh_token', tokens['refresh_token'], max_age=604800, httponly=False)
+                return response
 
             except IntegrityError:
                 # Xử lý xung đột đồng thời tại mức DB UNIQUE constraint
@@ -52,6 +156,81 @@ def dang_ky_view(request):
     return render(request, 'accounts/dang_ky.html', {'form': form})
 
 
+def dang_nhap_view(request):
+    """
+    Màn hình đăng nhập khách thuê (S1-02).
+    - Hỗ trợ đăng nhập bằng Email hoặc Số điện thoại cùng Mật khẩu.
+    - Chống dò mật khẩu: Khóa tài khoản 15 phút khi nhập sai 5 lần trong 15 phút.
+    - Hiển thị thời gian còn lại giảm dần theo thời gian thực khi bị khóa.
+    - Sinh và cấp phát Access Token (30 phút) & Refresh Token (7 ngày).
+    """
+    if request.user.is_authenticated:
+        return redirect('trang_chu')
+
+    error_message = None
+    lock_seconds = 0
+    email_or_phone_val = ''
+
+    if request.method == 'POST':
+        email_or_phone_val = request.POST.get('email_or_phone', '').strip()
+        mat_khau = request.POST.get('mat_khau', '')
+
+        # Tìm user theo email hoặc số điện thoại
+        lookup = email_or_phone_val.lower()
+        if '@' in lookup:
+            user_obj = TaiKhoan.objects.filter(email=lookup).first()
+        else:
+            user_obj = TaiKhoan.objects.filter(so_dien_thoai=email_or_phone_val).first()
+
+        if not user_obj:
+            # Không phân biệt sai tài khoản hay sai mật khẩu (chống dò tài khoản)
+            error_message = 'Thông tin đăng nhập không chính xác.'
+        else:
+            # 1. Kiểm tra trạng thái tạm khóa (S1-02 Task 2)
+            if user_obj.is_locked():
+                lock_seconds = user_obj.get_remaining_lock_seconds()
+                error_message = f'Tài khoản tạm thời bị khóa do nhập sai mật khẩu 5 lần liên tiếp. Vui lòng thử lại sau.'
+            else:
+                # Nếu đã hết thời gian khóa nhưng cờ còn lưu thì reset
+                if user_obj.khoa_den:
+                    user_obj.reset_login_failures()
+
+                # 2. Xác thực mật khẩu
+                if user_obj.check_password(mat_khau):
+                    if not user_obj.is_active:
+                        error_message = 'Tài khoản của bạn hiện đang bị khóa bởi quản trị viên.'
+                    else:
+                        # Đăng nhập thành công -> Đặt lại số lần sai
+                        user_obj.reset_login_failures()
+                        login(request, user_obj)
+
+                        # Sinh access token (30 phút) và refresh token (7 ngày)
+                        tokens = create_tokens_for_user(user_obj)
+
+                        messages.success(request, f'Chào mừng {user_obj.ho_ten} quay trở lại!')
+                        next_url = request.GET.get('next', 'trang_chu')
+                        response = redirect(next_url)
+
+                        # Lưu token vào cookie
+                        response.set_cookie('access_token', tokens['access_token'], max_age=1800, httponly=False)
+                        response.set_cookie('refresh_token', tokens['refresh_token'], max_age=604800, httponly=False)
+                        return response
+                else:
+                    # Ghi nhận lần nhập sai mật khẩu
+                    user_obj.record_login_failure()
+                    if user_obj.is_locked():
+                        lock_seconds = user_obj.get_remaining_lock_seconds()
+                        error_message = f'Tài khoản đã bị tạm khóa 15 phút do nhập sai mật khẩu 5 lần liên tiếp.'
+                    else:
+                        error_message = 'Thông tin đăng nhập không chính xác.'
+
+    return render(request, 'accounts/dang_nhap.html', {
+        'error_message': error_message,
+        'lock_seconds': lock_seconds,
+        'email_or_phone': email_or_phone_val,
+    })
+
+
 @login_required
 def trang_chu_view(request):
     """
@@ -60,46 +239,203 @@ def trang_chu_view(request):
     """
     return render(request, 'accounts/dashboard.html', {
         'user': request.user,
+        'active_nav': 'dashboard',
     })
 
 
 def dang_xuat_view(request):
     """
-    Đăng xuất tài khoản và xóa phiên làm việc.
+    Đăng xuất tài khoản khách thuê (S1-02 Task 3).
+    - Vô hiệu hóa refresh token và access token.
+    - Xóa token khỏi thiết bị (cookie).
+    - Hủy phiên đăng nhập Django session.
     """
+    refresh_token = request.COOKIES.get('refresh_token')
+    access_token = request.COOKIES.get('access_token')
+
+    if request.user.is_authenticated:
+        revoke_tokens(refresh_token_str=refresh_token, access_token_str=access_token, user=request.user)
+    elif refresh_token or access_token:
+        revoke_tokens(refresh_token_str=refresh_token, access_token_str=access_token)
+
     logout(request)
     messages.info(request, 'Bạn đã đăng xuất thành công.')
-    return redirect('dang_ky')
+
+    response = redirect('dang_nhap')
+    response.delete_cookie('access_token')
+    response.delete_cookie('refresh_token')
+    return response
 
 
-def dang_nhap_view(request):
+# ==============================================================================
+# API ENDPOINTS CHO TOKEN VÀ BẢO VỆ PHIÊN (S1-02 AC1, AC2, AC3, AC4)
+# ==============================================================================
+
+@csrf_exempt
+def api_login_view(request):
     """
-    Trang đăng nhập tối thiểu hỗ trợ kiểm thử và điều hướng khi chưa đăng nhập.
+    POST /api/auth/login/
+    Tiếp nhận thông tin đăng nhập, trả về access token (30m) & refresh token (7d).
+    Kiểm tra và xử lý khóa tài khoản 15 phút nếu sai 5 lần.
     """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Phương thức không được hỗ trợ.'}, status=405)
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        data = request.POST
+
+    email_or_phone = str(data.get('email_or_phone', '')).strip()
+    mat_khau = str(data.get('mat_khau', ''))
+
+    if not email_or_phone or not mat_khau:
+        return JsonResponse({'error': 'Vui lòng nhập đầy đủ thông tin đăng nhập.'}, status=400)
+
+    lookup = email_or_phone.lower()
+    if '@' in lookup:
+        user = TaiKhoan.objects.filter(email=lookup).first()
+    else:
+        user = TaiKhoan.objects.filter(so_dien_thoai=email_or_phone).first()
+
+    if not user:
+        return JsonResponse({'error': 'Thông tin đăng nhập không chính xác.'}, status=400)
+
+    # 1. Kiểm tra tài khoản có bị khóa chống dò mật khẩu không
+    if user.is_locked():
+        lock_seconds = user.get_remaining_lock_seconds()
+        return JsonResponse({
+            'error': f'Tài khoản tạm thời bị khóa do nhập sai mật khẩu 5 lần. Vui lòng thử lại sau {lock_seconds} giây.',
+            'is_locked': True,
+            'lock_seconds_remaining': lock_seconds,
+        }, status=423)
+
+    if user.khoa_den:
+        user.reset_login_failures()
+
+    # 2. Kiểm tra mật khẩu
+    if not user.check_password(mat_khau):
+        user.record_login_failure()
+        if user.is_locked():
+            lock_seconds = user.get_remaining_lock_seconds()
+            return JsonResponse({
+                'error': f'Tài khoản đã bị tạm khóa 15 phút do nhập sai mật khẩu 5 lần liên tiếp.',
+                'is_locked': True,
+                'lock_seconds_remaining': lock_seconds,
+            }, status=423)
+        return JsonResponse({'error': 'Thông tin đăng nhập không chính xác.'}, status=400)
+
+    if not user.is_active:
+        return JsonResponse({'error': 'Tài khoản của bạn đã bị khóa bởi quản trị viên.'}, status=403)
+
+    # Đăng nhập thành công -> Reset số lần sai
+    user.reset_login_failures()
+    tokens = create_tokens_for_user(user)
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Đăng nhập thành công.',
+        'tokens': tokens,
+        'user': {
+            'id': user.id,
+            'ho_ten': user.ho_ten,
+            'email': user.email,
+            'so_dien_thoai': user.so_dien_thoai,
+            'vai_tro': user.vai_tro,
+        }
+    })
+
+
+@csrf_exempt
+def api_refresh_view(request):
+    """
+    POST /api/auth/refresh/
+    Đổi refresh token còn hạn lấy access token mới (30 phút).
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Phương thức không được hỗ trợ.'}, status=405)
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        data = request.POST
+
+    refresh_token = data.get('refresh_token') or request.COOKIES.get('refresh_token')
+
+    if not refresh_token:
+        return JsonResponse({'error': 'Refresh token là bắt buộc.'}, status=401)
+
+    try:
+        token_info = refresh_access_token(refresh_token)
+        response = JsonResponse(token_info)
+        response.set_cookie('access_token', token_info['access_token'], max_age=token_info['expires_in'], httponly=False, samesite='Lax')
+        return response
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=401)
+
+
+@csrf_exempt
+def api_logout_view(request):
+    """
+    POST /api/auth/logout/
+    Vô hiệu hóa refresh token và access token khi người dùng đăng xuất.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Phương thức không được hỗ trợ.'}, status=405)
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        data = request.POST
+
+    refresh_token = data.get('refresh_token') or request.COOKIES.get('refresh_token')
+    auth_header = request.headers.get('Authorization', '')
+    access_token = None
+    if auth_header.startswith('Bearer '):
+        access_token = auth_header[7:].strip()
+    elif 'access_token' in request.COOKIES:
+        access_token = request.COOKIES.get('access_token')
+
+    user = None
+    if access_token:
+        user = verify_access_token(access_token)
+
+    revoke_tokens(refresh_token_str=refresh_token, access_token_str=access_token, user=user)
+
     if request.user.is_authenticated:
-        return redirect('trang_chu')
+        logout(request)
 
-    error_message = None
-    if request.method == 'POST':
-        email_or_phone = request.POST.get('email_or_phone', '').strip().lower()
-        mat_khau = request.POST.get('mat_khau', '')
+    response = JsonResponse({'success': True, 'message': 'Đăng xuất thành công và vô hiệu hóa phiên làm việc.'})
+    response.delete_cookie('access_token')
+    response.delete_cookie('refresh_token')
+    return response
 
-        # Tìm user theo email hoặc số điện thoại
-        user_obj = None
-        if '@' in email_or_phone:
-            user_obj = TaiKhoan.objects.filter(email=email_or_phone).first()
-        else:
-            user_obj = TaiKhoan.objects.filter(so_dien_thoai=email_or_phone).first()
 
-        if user_obj and user_obj.check_password(mat_khau):
-            if user_obj.is_active:
-                login(request, user_obj)
-                messages.success(request, f'Chào mừng {user_obj.ho_ten} quay trở lại!')
-                next_url = request.GET.get('next', 'trang_chu')
-                return redirect(next_url)
-            else:
-                error_message = 'Tài khoản của bạn hiện đang bị khóa.'
-        else:
-            error_message = 'Thông tin đăng nhập không chính xác.'
+def api_me_view(request):
+    """
+    GET /api/auth/me/
+    Endpoint mẫu yêu cầu xác thực bằng Access Token qua Header:
+    Authorization: Bearer <access_token>
+    Dùng để kiểm thử gọi API bằng token cũ sau đăng xuất trả về mã 401.
+    """
+    auth_header = request.headers.get('Authorization', '')
+    token = None
+    if auth_header.startswith('Bearer '):
+        token = auth_header[7:].strip()
+    elif 'access_token' in request.COOKIES:
+        token = request.COOKIES.get('access_token')
 
-    return render(request, 'accounts/dang_nhap.html', {'error_message': error_message})
+    if not token:
+        return JsonResponse({'error': 'Không có token xác thực.'}, status=401)
+
+    user = verify_access_token(token)
+    if not user:
+        return JsonResponse({'error': 'Token không hợp lệ, đã hết hạn hoặc đã bị vô hiệu hóa sau đăng xuất.'}, status=401)
+
+    return JsonResponse({
+        'id': user.id,
+        'ho_ten': user.ho_ten,
+        'email': user.email,
+        'so_dien_thoai': user.so_dien_thoai,
+        'vai_tro': user.vai_tro,
+    })

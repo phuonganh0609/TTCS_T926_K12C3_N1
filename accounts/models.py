@@ -1,4 +1,5 @@
 import re
+from datetime import timedelta
 from django.db import models
 from django.contrib.auth.models import (
     AbstractBaseUser,
@@ -6,6 +7,8 @@ from django.contrib.auth.models import (
     BaseUserManager,
 )
 from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
+from django.utils import timezone
 
 
 class VaiTro(models.TextChoices):
@@ -92,6 +95,12 @@ class TaiKhoan(AbstractBaseUser, PermissionsMixin):
     )
     is_staff = models.BooleanField(default=False, verbose_name='Nhân viên hệ thống')
 
+    # Quản lý khóa tài khoản khi sai mật khẩu liên tiếp (S1-02 Task 2)
+    so_lan_sai = models.IntegerField(default=0, verbose_name='Số lần đăng nhập sai')
+    khoa_den = models.DateTimeField(null=True, blank=True, verbose_name='Khóa đăng nhập đến')
+    lan_sai_cuoi = models.DateTimeField(null=True, blank=True, verbose_name='Thời điểm sai gần nhất')
+    thoi_diem_dang_xuat = models.DateTimeField(null=True, blank=True, verbose_name='Thời điểm đăng xuất gần nhất')
+
     # last_login và is_superuser đã được kế thừa từ AbstractBaseUser & PermissionsMixin
     ngay_tao = models.DateTimeField(auto_now_add=True, verbose_name='Ngày tạo')
     ngay_cap_nhat = models.DateTimeField(auto_now=True, verbose_name='Ngày cập nhật')
@@ -125,6 +134,47 @@ class TaiKhoan(AbstractBaseUser, PermissionsMixin):
     def mat_khau(self, raw_password):
         self.set_password(raw_password)
 
+    def is_locked(self):
+        """Kiểm tra tài khoản có đang trong thời gian bị tạm khóa đăng nhập không."""
+        if self.khoa_den and self.khoa_den > timezone.now():
+            return True
+        return False
+
+    def get_remaining_lock_seconds(self):
+        """Trả về số giây còn lại đang bị khóa (hoặc 0 nếu không bị khóa)."""
+        if self.is_locked():
+            diff = (self.khoa_den - timezone.now()).total_seconds()
+            return max(0, int(diff))
+        return 0
+
+    def record_login_failure(self):
+        """
+        Ghi nhận một lần đăng nhập sai.
+        - Đếm số lần sai trong vòng 15 phút.
+        - Nếu đạt 5 lần trong 15 phút -> khóa 15 phút.
+        """
+        now = timezone.now()
+        # Nếu lần sai trước đó đã quá 15 phút thì đặt lại số lần sai về 1
+        if self.lan_sai_cuoi and (now - self.lan_sai_cuoi) > timedelta(minutes=15):
+            self.so_lan_sai = 1
+        else:
+            self.so_lan_sai += 1
+
+        self.lan_sai_cuoi = now
+
+        # Đạt 5 lần sai trong vòng 15 phút -> khóa 15 phút
+        if self.so_lan_sai >= 5:
+            self.khoa_den = now + timedelta(minutes=15)
+
+        self.save(update_fields=['so_lan_sai', 'lan_sai_cuoi', 'khoa_den'])
+
+    def reset_login_failures(self):
+        """Đặt lại số lần đăng nhập sai khi đăng nhập thành công hoặc hết hạn khóa."""
+        self.so_lan_sai = 0
+        self.khoa_den = None
+        self.lan_sai_cuoi = None
+        self.save(update_fields=['so_lan_sai', 'khoa_den', 'lan_sai_cuoi'])
+
     def clean(self):
         super().clean()
         if self.email:
@@ -138,3 +188,138 @@ class TaiKhoan(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return f"{self.ho_ten} ({self.email}) - {self.get_vai_tro_display()}"
+
+
+class PhienDangNhap(models.Model):
+    """
+    Quản lý Refresh Token và phiên làm việc (S1-02 Task 1 & Task 3).
+    Hạn sử dụng 7 ngày. Hỗ trợ thu hồi (vô hiệu hóa) khi đăng xuất.
+    """
+    tai_khoan = models.ForeignKey(TaiKhoan, on_delete=models.CASCADE, related_name='phien_dang_nhap')
+    token_id = models.CharField(max_length=64, unique=True, db_index=True)
+    ngay_tao = models.DateTimeField(auto_now_add=True)
+    ngay_het_han = models.DateTimeField()
+    da_thu_hoi = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'phien_dang_nhap'
+        verbose_name = 'Phiên đăng nhập'
+        verbose_name_plural = 'Danh sách phiên đăng nhập'
+
+    def is_valid(self):
+        return not self.da_thu_hoi and self.ngay_het_han > timezone.now()
+
+
+class ThuHoiAccessToken(models.Model):
+    """
+    Danh sách các Access Token bị thu hồi trước hạn (Blacklist sau khi đăng xuất).
+    """
+    jti = models.CharField(max_length=64, unique=True, db_index=True)
+    ngay_het_han = models.DateTimeField()
+    ngay_thu_hoi = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'thu_hoi_access_token'
+        verbose_name = 'Access Token bị thu hồi'
+        verbose_name_plural = 'Danh sách Access Token bị thu hồi'
+
+
+class KhachThue(models.Model):
+    """Thông tin hồ sơ và ảnh giấy tờ của khách thuê (S1-06)."""
+
+    tai_khoan = models.OneToOneField(
+        TaiKhoan, on_delete=models.PROTECT, related_name='ho_so_khach_thue',
+    )
+    ho_ten = models.CharField('Họ tên', max_length=100)
+    ngay_sinh = models.DateField('Ngày sinh')
+    so_giay_to = models.CharField(
+        'Số căn cước', max_length=12,
+        validators=[RegexValidator(
+            regex=r'\A(?:[0-9]{9}|[0-9]{12})\Z',
+            message='Số căn cước chỉ được gồm 9 hoặc 12 chữ số.',
+        )],
+    )
+    que_quan = models.CharField('Quê quán', max_length=255)
+    nghe_nghiep = models.CharField('Nghề nghiệp', max_length=150)
+    anh_giay_to_truoc = models.FileField('Ảnh mặt trước', upload_to='giay-to/', blank=True, max_length=255)
+    anh_giay_to_sau = models.FileField('Ảnh mặt sau', upload_to='giay-to/', blank=True, max_length=255)
+    ngay_tao = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'khach_thue'
+        verbose_name = 'Hồ sơ khách thuê'
+        verbose_name_plural = 'Hồ sơ khách thuê'
+
+    def __str__(self):
+        return self.ho_ten
+
+
+# Quan hệ tối thiểu phục vụ phân quyền S1-06; chưa triển khai nghiệp vụ cho thuê.
+class ToaNha(models.Model):
+    chu_nha = models.ForeignKey(TaiKhoan, on_delete=models.PROTECT,
+                               limit_choices_to={'vai_tro': VaiTro.CHU_NHA})
+    ten_toa_nha = models.CharField('Tên tòa nhà', max_length=150)
+
+    class Meta:
+        db_table = 'toa_nha'
+        verbose_name = 'Tòa nhà'
+        verbose_name_plural = 'Tòa nhà'
+
+    def __str__(self):
+        return self.ten_toa_nha
+
+
+class PhongTro(models.Model):
+    toa_nha = models.ForeignKey(ToaNha, on_delete=models.PROTECT)
+    ma_phong = models.CharField('Mã phòng', max_length=20)
+
+    class Meta:
+        db_table = 'phong_tro'
+        verbose_name = 'Phòng trọ'
+        verbose_name_plural = 'Phòng trọ'
+        constraints = [models.UniqueConstraint(fields=['toa_nha', 'ma_phong'], name='unique_phong_trong_toa')]
+
+    def __str__(self):
+        return f'{self.toa_nha} — {self.ma_phong}'
+
+
+class HopDong(models.Model):
+    class TrangThai(models.TextChoices):
+        NHAP = 'NHAP', 'Nháp'
+        CHO_HIEU_LUC = 'CHO_HIEU_LUC', 'Chờ hiệu lực'
+        DANG_HIEU_LUC = 'DANG_HIEU_LUC', 'Đang hiệu lực'
+        DA_KET_THUC = 'DA_KET_THUC', 'Đã kết thúc'
+        DA_HUY = 'DA_HUY', 'Đã hủy'
+
+    ma_hop_dong = models.CharField('Mã hợp đồng', max_length=30, unique=True)
+    phong = models.ForeignKey(PhongTro, on_delete=models.PROTECT)
+    khach_dung_ten = models.ForeignKey(KhachThue, on_delete=models.PROTECT)
+    trang_thai = models.CharField('Trạng thái', max_length=25, choices=TrangThai.choices,
+                                 default=TrangThai.NHAP)
+    ngay_tra_phong = models.DateField('Ngày trả phòng', null=True, blank=True)
+
+    class Meta:
+        db_table = 'hop_dong'
+        verbose_name = 'Hợp đồng'
+        verbose_name_plural = 'Hợp đồng'
+
+    def __str__(self):
+        return self.ma_hop_dong
+
+
+class KyHopDong(models.Model):
+    hop_dong = models.ForeignKey(HopDong, on_delete=models.CASCADE, related_name='cac_ky')
+    so_thu_tu = models.PositiveIntegerField('Số thứ tự', default=1)
+    ngay_bat_dau = models.DateField('Ngày bắt đầu')
+    ngay_ket_thuc = models.DateField('Ngày kết thúc')
+
+    class Meta:
+        db_table = 'ky_hop_dong'
+        verbose_name = 'Kỳ hợp đồng'
+        verbose_name_plural = 'Kỳ hợp đồng'
+        constraints = [
+            models.UniqueConstraint(fields=['hop_dong', 'so_thu_tu'], name='unique_so_ky_hop_dong'),
+            models.CheckConstraint(condition=models.Q(ngay_ket_thuc__gte=models.F('ngay_bat_dau')),
+                                   name='ky_hop_dong_ngay_hop_le'),
+            models.CheckConstraint(condition=models.Q(so_thu_tu__gte=1), name='ky_hop_dong_thu_tu_duong'),
+        ]
