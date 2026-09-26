@@ -3,66 +3,120 @@
 
 ---
 
-## 1. Công nghệ sử dụng
-- **Ngôn ngữ**: Python 3.12+
-- **Framework**: Django 5.1
-- **Cơ sở dữ liệu**: SQLite (bảng nghiệp vụ theo thiết kế `docs/02-csdl.md`)
-- **Giao diện**: Django Templates, HTML5, CSS3, JavaScript, Bootstrap 5.3
-- **Bảo mật**: Django Session, CSRF Protection, Password Hasher `BCryptSHA256PasswordHasher` (thư viện `bcrypt`).
+## Phiên bản Spring Boot + React
+
+Nhánh `feature/tenant-self-registration-spring-react` triển khai lại chức năng
+đăng ký khách thuê theo stack trong yêu cầu ban đầu:
+
+- Backend: Spring Boot 3, Java 17, Spring Data JPA, PostgreSQL 15.
+- Frontend: React 18, TypeScript, Vite.
+- Xác thực: BCrypt, JWT access token 30 phút và refresh token 7 ngày.
+
+### Trạng thái bàn giao
+
+- [x] Lát 1: đăng ký khách thuê, hash BCrypt, JWT access/refresh token và tự động đăng nhập.
+- [x] Lát 2: kiểm tra trùng email/số điện thoại, trả lỗi đúng field với HTTP `409`.
+- [x] Đăng nhập bằng email hoặc số điện thoại.
+- [x] Frontend hiển thị nhãn vai trò `Khách thuê`, không hiển thị mã `TENANT`.
+- [x] Backend integration tests và frontend production build đã pass.
+
+Nhánh này đã push lên GitHub nhưng **chưa merge vào `dev`**. Các thay đổi cũ
+trên nhánh `feature/tenant-self-registration` vẫn được giữ nguyên.
+
+### Chạy nhanh trên Windows
+
+Yêu cầu: Docker Desktop đang mở, Java 17, Maven 3.9+ và Node.js 20+.
+Các đường dẫn Java/Maven dưới đây là vị trí trên máy phát triển hiện tại; nếu
+máy khác cài ở nơi khác thì sửa `JAVA_HOME` và `Path` tương ứng.
+
+Mở PowerShell thứ nhất tại thư mục gốc repository:
+
+```powershell
+docker compose up -d postgres
+$env:JAVA_HOME = "D:\DevTools\Java\temurin-17.0.20.1+1"
+$env:MAVEN_OPTS = "-Dmaven.repo.local=D:\DevCache\m2"
+$env:Path = "D:\DevTools\Maven\apache-maven-3.9.9\bin;$env:Path"
+Set-Location backend
+mvn test
+mvn spring-boot:run
+```
+
+Mở PowerShell thứ hai tại thư mục gốc repository:
+
+```powershell
+Set-Location frontend
+npm install
+npm run dev -- --host 127.0.0.1
+```
+
+Mở URL Vite được in trong terminal, thường là `http://127.0.0.1:5173/`.
+Nếu cổng đó đang bận, Vite sẽ chọn cổng tiếp theo, thường là `5174`.
+
+### Các lệnh riêng
+
+Chạy PostgreSQL (Docker Engine phải đang chạy):
+
+```powershell
+docker compose up -d postgres
+```
+
+Chạy backend test bằng H2, không cần PostgreSQL:
+
+```powershell
+Set-Location backend
+mvn test
+```
+
+Backend chạy tại `http://localhost:8080`.
+
+API đăng ký:
+
+```text
+POST http://localhost:8080/api/auth/register
+```
+
+Body JSON:
+
+```json
+{
+  "fullName": "Nguyen Van A",
+  "phone": "0901234567",
+  "email": "a@example.com",
+  "password": "MatKhau123"
+}
+```
+
+API đăng nhập bằng email hoặc số điện thoại:
+
+```text
+POST http://localhost:8080/api/auth/login
+```
+
+```json
+{
+  "identifier": "a@example.com",
+  "password": "MatKhau123"
+}
+```
+
+Sai thông tin đăng nhập trả HTTP `401` với mã `INVALID_CREDENTIALS`.
+
+Lỗi validation trả HTTP `400` với `fieldErrors`. Lỗi trùng email hoặc số điện
+thoại trả HTTP `409` với mã `DUPLICATE_FIELD`; frontend hiển thị lỗi đúng tại
+field tương ứng và không tạo tài khoản mới.
+
+Kiểm tra backend bằng H2 test database, không cần PostgreSQL:
+
+```powershell
+cd backend
+mvn test
+```
+
+Để dừng PostgreSQL sau khi demo:
+
+```powershell
+docker compose down
+```
 
 ---
 
-## 2. Hướng dẫn cài đặt và khởi chạy
-
-### Bước 1: Chuẩn bị môi trường ảo
-```powershell
-# Tạo môi trường ảo Python
-py -3.12 -m venv .venv
-
-# Kích hoạt môi trường ảo (Windows PowerShell)
-.\.venv\Scripts\Activate.ps1
-```
-
-### Bước 2: Cài đặt các gói phụ thuộc
-```powershell
-pip install -r requirements.txt
-```
-
-### Bước 3: Thực hiện di chuyển cơ sở dữ liệu (Migration)
-```powershell
-python manage.py migrate
-```
-
-### Bước 4: Chạy kiểm thử tự động (76 test cases)
-```powershell
-python manage.py test accounts -v 2
-```
-
-### Bước 5: Khởi động máy chủ phát triển
-```powershell
-python manage.py runserver
-```
-Truy cập trình duyệt tại:
-- Trang đăng ký tài khoản khách thuê: `http://127.0.0.1:8000/dang-ky/` hoặc `http://127.0.0.1:8000/`
-- Trang đăng nhập: `http://127.0.0.1:8000/dang-nhap/`
-- Trang chủ / Dashboard: `http://127.0.0.1:8000/trang-chu/`
-- Hồ sơ cá nhân khách thuê: `http://127.0.0.1:8000/ho-so/` (cần đăng nhập).
-- Danh sách hồ sơ cho ADMIN/CHU_NHA/QUAN_LY: `http://127.0.0.1:8000/ho-so/khach-thue/`; trang xem `/ho-so/<id>/` trả căn cước theo quyền.
-- Trang quản trị: `http://127.0.0.1:8000/admin/`
-
----
-
-## 3. Trạng thái tính năng hiện tại (Sprint 1)
-- **S1-01: Đăng ký tài khoản Khách thuê**:
-  - [x] Task 1: Biểu mẫu đăng ký 4 trường, kiểm tra định dạng số điện thoại (10 chữ số bắt đầu bằng 0), mật khẩu (>=8 ký tự, có chữ và số), băm BCrypt, tự động đăng nhập và chuyển hướng trang đích.
-  - [x] Task 2: Ngăn trùng lặp số điện thoại và email độc lập, hiển thị lỗi đúng trường, xử lý bắt lỗi xung đột DB `IntegrityError`.
-
-- **S1-06: Thông tin hồ sơ cá nhân**:
-  - [x] Xem, lưu mới, cập nhật và mở lại họ tên, ngày sinh, căn cước, quê quán, nghề nghiệp.
-  - [x] Căn cước đúng 9 hoặc 12 chữ số, giữ số 0 đầu; báo lỗi ngay tại trường ở giao diện và backend.
-  - [x] Chỉ khách thuê sửa hồ sơ của mình; CSRF và kiểm thử quyền truy cập.
-  - [x] Tải, xem trước, lưu và thay thế ảnh mặt trước/mặt sau: JPG/JPEG hoặc PNG, tối đa 5 × 1024 × 1024 byte mỗi ảnh; tự thu nhỏ chiều rộng trên 1600px, giữ tỷ lệ.
-  - Ảnh nằm trong `private_media/`, không đưa vào Git; chỉ chủ hồ sơ, ADMIN hoặc đúng chủ nhà đang cho thuê đọc được qua view kiểm tra quyền. Không cấu hình web server phục vụ công khai thư mục này. Sao lưu thư mục ảnh cùng CSDL.
-  - [x] Căn cước 9 số che `*****6789`, 12 số che `********6789`; chỉ ADMIN và đúng chủ nhà của phòng đang thuê xem đầy đủ. Trang sửa không điền lại căn cước: để trống giữ số cũ, nhập mới để thay.
-  - Xem `docs/03-task-ho-so.md` để tạo quan hệ thuê qua Django Admin và demo tất cả vai trò. Các bảng quan hệ thuê hiện chỉ có phần tối thiểu phục vụ quyền S1-06.
-  - Khi cập nhật mã nguồn, cài `pip install -r requirements.txt`, chạy `python manage.py migrate` (hồ sơ `0003`, ảnh `0004`, quan hệ thuê `0005`).
