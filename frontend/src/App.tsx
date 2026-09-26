@@ -80,7 +80,7 @@ function App() {
       setForm(initialForm);
       setLoginForm(initialLoginForm);
       window.history.replaceState({}, '', '/trang-chu');
-      window.setTimeout(() => setDashboardUser(response.user), 500);
+      window.setTimeout(() => setDashboardUser(response.user), 400);
     } catch (error) {
       const apiError = error as Error & { fieldErrors?: Record<string, string> };
       setServerError(apiError.message);
@@ -102,105 +102,190 @@ function App() {
     window.history.replaceState({}, '', '/');
   };
 
-  if (dashboardUser) {
-    if (view === 'profile') {
-      return (
-        <main className="shell dashboard-shell">
-          <HoSo token={accessToken} onBack={() => setView('dashboard')} />
-        </main>
-      );
-    }
-
-    return (
-      <main className="shell dashboard-shell">
-        <section className="dashboard-card" aria-labelledby="dashboard-title">
-          <p className="eyebrow">ĐĂNG NHẬP THÀNH CÔNG</p>
-          <h1 id="dashboard-title">Chào mừng, {dashboardUser.fullName}.</h1>
-          <p className="intro-copy">Tài khoản khách thuê của bạn đã sẵn sàng để bắt đầu tìm căn phòng phù hợp.</p>
-          <div className="profile-summary">
-            <span>Email</span><strong>{dashboardUser.email}</strong>
-            <span>Số điện thoại</span><strong>{dashboardUser.phone}</strong>
-            <span>Vai trò</span><strong>{roleLabels[dashboardUser.role] ?? dashboardUser.role}</strong>
-          </div>
-
-          <div className="dashboard-actions">
-            <button type="button" className="btn-primary" onClick={() => setView('profile')}>
-              <UserCheck size={18} /> Hồ sơ cá nhân (S1-06)
-            </button>
-            <button type="button" className="btn-secondary" onClick={handleLogout}>
-              <LogOut size={18} /> Đăng xuất
-            </button>
-          </div>
-        </section>
-      </main>
-    );
-  }
-
   return (
     <main className="shell">
+      {/* Left Column: Shared Hero / Banner */}
       <section className="intro">
         <p className="eyebrow">HỆ THỐNG CHO THUÊ PHÒNG TRỌ VÀ CĂN HỘ</p>
         <h1>Tìm một nơi vừa vặn với nhịp sống của bạn.</h1>
-        <p className="intro-copy">Đăng ký tài khoản khách thuê để tìm phòng trọ, căn hộ và gửi yêu cầu thuê ngay khi thấy tin phù hợp.</p>
+        <p className="intro-copy">
+          {dashboardUser
+            ? 'Tài khoản khách thuê của bạn đã sẵn sàng để tìm phòng trọ, căn hộ và gửi yêu cầu thuê ngay khi thấy tin phù hợp.'
+            : 'Đăng ký tài khoản khách thuê để tìm phòng trọ, căn hộ và gửi yêu cầu thuê ngay khi thấy tin phù hợp.'}
+        </p>
         <div className="trust-row">
           <span><CheckCircle2 size={17} /> Miễn phí bắt đầu</span>
           <span><LockKeyhole size={17} /> Mật khẩu được bảo vệ</span>
         </div>
       </section>
 
-      <section className="register-panel" aria-labelledby="register-title">
-        <div className="panel-heading">
-          <div className="mark"><UserRound size={20} /></div>
-          <div>
-            <p className="kicker">{mode === 'register' ? 'TẠO TÀI KHOẢN' : 'CHÀO MỪNG TRỞ LẠI'}</p>
-            <h2 id="register-title">{mode === 'register' ? 'Đăng ký khách thuê' : 'Đăng nhập'}</h2>
+      {/* Right Column: Dynamic Panel (Register/Login or Dashboard or Profile) */}
+      {dashboardUser ? (
+        view === 'profile' ? (
+          <HoSo token={accessToken} onBack={() => setView('dashboard')} />
+        ) : (
+          <section className="register-panel" aria-labelledby="dashboard-title">
+            <div className="panel-heading">
+              <div className="mark"><UserCheck size={20} /></div>
+              <div>
+                <p className="kicker">ĐĂNG NHẬP THÀNH CÔNG</p>
+                <h2 id="dashboard-title">Chào mừng, {dashboardUser.fullName}.</h2>
+              </div>
+            </div>
+
+            <p className="dashboard-intro">
+              Tài khoản khách thuê của bạn đã sẵn sàng để bắt đầu tìm căn phòng phù hợp.
+            </p>
+
+            <div className="profile-summary">
+              <div>
+                <span className="summary-label">Email</span>
+                <strong className="summary-val">{dashboardUser.email}</strong>
+              </div>
+              <div>
+                <span className="summary-label">Số điện thoại</span>
+                <strong className="summary-val">{dashboardUser.phone}</strong>
+              </div>
+              <div>
+                <span className="summary-label">Vai trò</span>
+                <strong className="summary-val">{roleLabels[dashboardUser.role] ?? dashboardUser.role}</strong>
+              </div>
+            </div>
+
+            <div className="dashboard-actions">
+              <button type="button" className="btn-primary" onClick={() => setView('profile')}>
+                <UserCheck size={18} /> Hồ sơ cá nhân (S1-06)
+              </button>
+              <button type="button" className="btn-secondary" onClick={handleLogout}>
+                <LogOut size={18} /> Đăng xuất
+              </button>
+            </div>
+          </section>
+        )
+      ) : (
+        <section className="register-panel" aria-labelledby="register-title">
+          <div className="panel-heading">
+            <div className="mark"><UserRound size={20} /></div>
+            <div>
+              <p className="kicker">{mode === 'register' ? 'TẠO TÀI KHOẢN' : 'CHÀO MỪNG TRỞ LẠI'}</p>
+              <h2 id="register-title">{mode === 'register' ? 'Đăng ký khách thuê' : 'Đăng nhập'}</h2>
+            </div>
           </div>
-        </div>
 
-        {success && <div className="alert success">Đăng ký thành công. Bạn đã được đăng nhập.</div>}
-        {serverError && <div className="alert error">{serverError}</div>}
+          {success && <div className="alert success">Đăng ký thành công. Bạn đã được đăng nhập.</div>}
+          {serverError && <div className="alert error">{serverError}</div>}
 
-        <form onSubmit={submit} noValidate>
-          {mode === 'login' ? <>
-          <label>
-            Email hoặc số điện thoại
-            <span className="input-wrap"><Mail size={18} /><input value={loginForm.identifier} onChange={(event) => updateLoginField('identifier', event.target.value)} placeholder="email@example.com hoặc 0901234567" autoComplete="username" /></span>
-            {errors.identifier && <small>{errors.identifier}</small>}
-          </label>
-          <label>
-            Mật khẩu
-            <span className="input-wrap"><LockKeyhole size={18} /><input type="password" value={loginForm.password} onChange={(event) => updateLoginField('password', event.target.value)} placeholder="Nhập mật khẩu" autoComplete="current-password" /></span>
-            {errors.password && <small>{errors.password}</small>}
-          </label>
-          </> : <>
-          <label>
-            Họ và tên
-            <span className="input-wrap"><UserRound size={18} /><input value={form.fullName} onChange={(event) => updateField('fullName', event.target.value)} placeholder="Nguyễn Văn A" autoComplete="name" /></span>
-            {errors.fullName && <small>{errors.fullName}</small>}
-          </label>
-          <label>
-            Số điện thoại
-            <span className="input-wrap"><Phone size={18} /><input value={form.phone} onChange={(event) => updateField('phone', event.target.value)} placeholder="0901234567" inputMode="numeric" autoComplete="tel" /></span>
-            {errors.phone && <small>{errors.phone}</small>}
-          </label>
-          <label>
-            Email
-            <span className="input-wrap"><Mail size={18} /><input type="email" value={form.email} onChange={(event) => updateField('email', event.target.value)} placeholder="ban@example.com" autoComplete="email" /></span>
-            {errors.email && <small>{errors.email}</small>}
-          </label>
-          <label>
-            Mật khẩu
-            <span className="input-wrap"><LockKeyhole size={18} /><input type="password" value={form.password} onChange={(event) => updateField('password', event.target.value)} placeholder="Tối thiểu 8 ký tự, gồm chữ và số" autoComplete="new-password" /></span>
-            {errors.password && <small>{errors.password}</small>}
-          </label>
-          </>}
-          <button type="submit" disabled={loading}>
-            {loading ? 'Đang xử lý...' : mode === 'register' ? 'Tạo tài khoản' : 'Đăng nhập'}
-            {!loading && <ArrowRight size={18} />}
-          </button>
-        </form>
-        <p className="fine-print">{mode === 'register' ? 'Bằng cách tiếp tục, bạn đồng ý với điều khoản sử dụng của nền tảng.' : 'Chưa có tài khoản?'} <button type="button" className="link-button" onClick={() => { setMode(mode === 'register' ? 'login' : 'register'); setErrors({}); setServerError(''); }}>{mode === 'register' ? 'Đăng nhập' : 'Đăng ký ngay'}</button></p>
-      </section>
+          <form onSubmit={submit} noValidate>
+            {mode === 'login' ? (
+              <>
+                <label>
+                  Email hoặc số điện thoại
+                  <span className="input-wrap">
+                    <Mail size={18} />
+                    <input
+                      value={loginForm.identifier}
+                      onChange={(event) => updateLoginField('identifier', event.target.value)}
+                      placeholder="email@example.com hoặc 0901234567"
+                      autoComplete="username"
+                    />
+                  </span>
+                  {errors.identifier && <small>{errors.identifier}</small>}
+                </label>
+                <label>
+                  Mật khẩu
+                  <span className="input-wrap">
+                    <LockKeyhole size={18} />
+                    <input
+                      type="password"
+                      value={loginForm.password}
+                      onChange={(event) => updateLoginField('password', event.target.value)}
+                      placeholder="Nhập mật khẩu"
+                      autoComplete="current-password"
+                    />
+                  </span>
+                  {errors.password && <small>{errors.password}</small>}
+                </label>
+              </>
+            ) : (
+              <>
+                <label>
+                  Họ và tên
+                  <span className="input-wrap">
+                    <UserRound size={18} />
+                    <input
+                      value={form.fullName}
+                      onChange={(event) => updateField('fullName', event.target.value)}
+                      placeholder="Nguyễn Văn A"
+                      autoComplete="name"
+                    />
+                  </span>
+                  {errors.fullName && <small>{errors.fullName}</small>}
+                </label>
+                <label>
+                  Số điện thoại
+                  <span className="input-wrap">
+                    <Phone size={18} />
+                    <input
+                      value={form.phone}
+                      onChange={(event) => updateField('phone', event.target.value)}
+                      placeholder="0901234567"
+                      inputMode="numeric"
+                      autoComplete="tel"
+                    />
+                  </span>
+                  {errors.phone && <small>{errors.phone}</small>}
+                </label>
+                <label>
+                  Email
+                  <span className="input-wrap">
+                    <Mail size={18} />
+                    <input
+                      type="email"
+                      value={form.email}
+                      onChange={(event) => updateField('email', event.target.value)}
+                      placeholder="ban@example.com"
+                      autoComplete="email"
+                    />
+                  </span>
+                  {errors.email && <small>{errors.email}</small>}
+                </label>
+                <label>
+                  Mật khẩu
+                  <span className="input-wrap">
+                    <LockKeyhole size={18} />
+                    <input
+                      type="password"
+                      value={form.password}
+                      onChange={(event) => updateField('password', event.target.value)}
+                      placeholder="Tối thiểu 8 ký tự, gồm chữ và số"
+                      autoComplete="new-password"
+                    />
+                  </span>
+                  {errors.password && <small>{errors.password}</small>}
+                </label>
+              </>
+            )}
+            <button type="submit" disabled={loading}>
+              {loading ? 'Đang xử lý...' : mode === 'register' ? 'Tạo tài khoản' : 'Đăng nhập'}
+              {!loading && <ArrowRight size={18} />}
+            </button>
+          </form>
+          <p className="fine-print">
+            {mode === 'register' ? 'Bằng cách tiếp tục, bạn đồng ý với điều khoản sử dụng của nền tảng.' : 'Chưa có tài khoản?'}{' '}
+            <button
+              type="button"
+              className="link-button"
+              onClick={() => {
+                setMode(mode === 'register' ? 'login' : 'register');
+                setErrors({});
+                setServerError('');
+              }}
+            >
+              {mode === 'register' ? 'Đăng nhập' : 'Đăng ký ngay'}
+            </button>
+          </p>
+        </section>
+      )}
     </main>
   );
 }
