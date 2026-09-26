@@ -84,19 +84,21 @@ export function HoSo({ token, onBack }: HoSoProps) {
 
   if (loading) {
     return (
-      <div className="profile-card">
+      <div className="info-card-panel">
         <p>Đang tải thông tin hồ sơ...</p>
       </div>
     );
   }
 
   return (
-    <div className="profile-card">
-      <div className="profile-header">
-        <button type="button" className="btn-secondary nav-back" onClick={onBack}>
+    <div className="info-card-panel">
+      <div className="card-header">
+        <h3 className="card-kicker-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <UserCheck size={20} /> HỒ SƠ CÁ NHÂN KHÁCH THUÊ (S1-06)
+        </h3>
+        <button type="button" className="btn-action-secondary" style={{ padding: '8px 14px', width: 'auto' }} onClick={onBack}>
           <ArrowLeft size={16} /> Quay lại
         </button>
-        <h2><UserCheck size={24} /> Hồ sơ cá nhân khách thuê (S1-06)</h2>
       </div>
 
       {message && <div className="alert success"><Check size={18} /> {message}</div>}
@@ -142,7 +144,9 @@ export function HoSo({ token, onBack }: HoSoProps) {
 
         <hr className="divider" />
 
-        <h3><FileText size={20} /> Ảnh giấy tờ căn cước (Tối đa 5MB / ảnh, JPG hoặc PNG)</h3>
+        <h4 style={{ margin: '12px 0 8px', color: '#0f172a', fontSize: '0.98rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <FileText size={18} /> Ảnh giấy tờ căn cước (Tối đa 5MB / ảnh, JPG hoặc PNG)
+        </h4>
 
         <div className="image-grid">
           <div className="image-box">
@@ -158,8 +162,8 @@ export function HoSo({ token, onBack }: HoSoProps) {
           </div>
         </div>
 
-        <div className="actions">
-          <button type="submit" className="btn-primary" disabled={saving}>
+        <div className="actions" style={{ marginTop: 16 }}>
+          <button type="submit" className="btn-action-primary" style={{ width: 'auto' }} disabled={saving}>
             <Save size={18} /> {saving ? 'Đang lưu...' : 'Lưu hồ sơ cá nhân'}
           </button>
         </div>
