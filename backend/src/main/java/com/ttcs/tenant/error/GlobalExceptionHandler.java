@@ -1,5 +1,7 @@
 package com.ttcs.tenant.error;
 
+import com.ttcs.tenant.auth.AccountLockedException;
+import com.ttcs.tenant.auth.InvalidTokenException;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,10 +15,26 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
     @ExceptionHandler(InvalidCredentialsException.class)
     public ResponseEntity<ApiError> handleInvalidCredentials(InvalidCredentialsException exception) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiError(
                 "INVALID_CREDENTIALS", exception.getMessage(), Map.of(), Instant.now()
+        ));
+    }
+
+    @ExceptionHandler(AccountLockedException.class)
+    public ResponseEntity<ApiError> handleAccountLocked(AccountLockedException exception) {
+        Map<String, String> extra = Map.of("lockSecondsRemaining", String.valueOf(exception.getLockSecondsRemaining()));
+        return ResponseEntity.status(423 /* Locked */).body(new ApiError(
+                "ACCOUNT_LOCKED", exception.getMessage(), extra, Instant.now()
+        ));
+    }
+
+    @ExceptionHandler(InvalidTokenException.class)
+    public ResponseEntity<ApiError> handleInvalidToken(InvalidTokenException exception) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiError(
+                "INVALID_TOKEN", exception.getMessage(), Map.of(), Instant.now()
         ));
     }
 

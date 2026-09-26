@@ -1,5 +1,6 @@
 package com.ttcs.tenant.auth;
 
+import com.ttcs.tenant.user.RefreshTokenRepository;
 import com.ttcs.tenant.user.Role;
 import com.ttcs.tenant.user.User;
 import com.ttcs.tenant.user.UserRepository;
@@ -31,10 +32,14 @@ class AuthControllerIntegrationTest {
     private UserRepository userRepository;
 
     @Autowired
+    private RefreshTokenRepository refreshTokenRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @BeforeEach
     void clearUsers() {
+      refreshTokenRepository.deleteAll();
       userRepository.deleteAll();
     }
 
@@ -200,5 +205,34 @@ class AuthControllerIntegrationTest {
                                 """))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"));
+    }
+
+    @Test
+    void fiveFailedLoginsLocksAccount() throws Exception {
+        userRepository.save(new User("Lock Test", "0907777777", "lock@example.com", passwordEncoder.encode("StrongPass123"), Role.TENANT));
+
+        for (int i = 0; i < 4; i++) {
+            mockMvc.perform(post("/api/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "identifier": "lock@example.com",
+                                      "password": "WrongPassword"
+                                    }
+                                    """))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        // 5th failed attempt locks the account (HTTP 423)
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "identifier": "lock@example.com",
+                                  "password": "WrongPassword"
+                                }
+                                """))
+                .andExpect(status().is(423))
+                .andExpect(jsonPath("$.code").value("ACCOUNT_LOCKED"));
     }
 }

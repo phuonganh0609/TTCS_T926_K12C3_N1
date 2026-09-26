@@ -1,14 +1,15 @@
 package com.ttcs.tenant.auth;
 
+import com.ttcs.tenant.error.InvalidCredentialsException;
 import com.ttcs.tenant.user.Role;
 import com.ttcs.tenant.user.User;
 import com.ttcs.tenant.user.UserRepository;
 import com.ttcs.tenant.error.DuplicateFieldException;
-import com.ttcs.tenant.error.InvalidCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.Locale;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -47,33 +48,83 @@ public class AuthService {
                 Role.TENANT
         );
         User savedUser = userRepository.save(user);
-        return new RegisterResponse(
-                jwtService.createAccessToken(savedUser),
-                jwtService.createRefreshToken(savedUser),
-                "Bearer",
-                jwtService.getAccessTokenSeconds(),
-                new RegisterResponse.UserResponse(
-                        savedUser.getId(), savedUser.getFullName(), savedUser.getPhone(), savedUser.getEmail(), savedUser.getRole()
-                )
-        );
+        return buildResponse(savedUser);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(noRollbackFor = {InvalidCredentialsException.class, AccountLockedException.class})
     public RegisterResponse login(LoginRequest request) {
         String identifier = request.identifier().trim();
         User user = identifier.contains("@")
                 ? userRepository.findByEmailIgnoreCase(identifier).orElse(null)
                 : userRepository.findByPhone(identifier).orElse(null);
-        if (user == null || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+
+        if (user == null) {
             throw new InvalidCredentialsException();
         }
 
+        // Kiểm tra tài khoản bị khóa (S1-02)
+        if (user.isLocked()) {
+            long secs = user.getRemainingLockSeconds();
+            throw new AccountLockedException(
+                    "Tài khoản tạm thời bị khóa do nhập sai mật khẩu 5 lần. Vui lòng thử lại sau " + secs + " giây.", secs);
+        }
+
+        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            user.recordLoginFailure();
+            userRepository.save(user);
+            if (user.isLocked()) {
+                throw new AccountLockedException(
+                        "Tài khoản đã bị tạm khóa 15 phút do nhập sai mật khẩu 5 lần liên tiếp.",
+                        user.getRemainingLockSeconds());
+            }
+            throw new InvalidCredentialsException();
+        }
+
+        // Đăng nhập thành công → reset số lần sai
+        user.resetLoginFailures();
+        userRepository.save(user);
+        return buildResponse(user);
+    }
+
+    /**
+     * Đăng xuất: vô hiệu hóa access token, thu hồi mọi refresh token của user.
+     * Port từ dang_xuat_view / revoke_tokens (Django/main).
+     */
+    @Transactional
+    public void logout(String accessToken, Long userId) {
+        if (accessToken != null) {
+            jwtService.revokeAccessToken(accessToken);
+        }
+        if (userId != null) {
+            jwtService.revokeAllRefreshTokens(userId);
+            userRepository.findById(userId).ifPresent(u -> {
+                u.setThoiDiemDangXuat(Instant.now());
+                userRepository.save(u);
+            });
+        }
+    }
+
+    /**
+     * Làm mới access token từ refresh token còn hạn.
+     * Port từ api_refresh_view (Django/main).
+     */
+    @Transactional
+    public TokenRefreshResponse refresh(String refreshToken) {
+        String newAccessToken = jwtService.rotateRefreshToken(refreshToken);
+        return new TokenRefreshResponse(newAccessToken, "Bearer", jwtService.getAccessTokenSeconds());
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    private RegisterResponse buildResponse(User user) {
         return new RegisterResponse(
                 jwtService.createAccessToken(user),
                 jwtService.createRefreshToken(user),
                 "Bearer",
                 jwtService.getAccessTokenSeconds(),
-                new RegisterResponse.UserResponse(user.getId(), user.getFullName(), user.getPhone(), user.getEmail(), user.getRole())
+                new RegisterResponse.UserResponse(
+                        user.getId(), user.getFullName(), user.getPhone(), user.getEmail(), user.getRole()
+                )
         );
     }
 }
