@@ -3,120 +3,88 @@
 
 ---
 
-## Phiên bản Spring Boot + React
+## 🛠️ Công Nghệ Sử Dụng (Nhánh chính `dev`)
 
-Nhánh `feature/tenant-self-registration-spring-react` triển khai lại chức năng
-đăng ký khách thuê theo stack trong yêu cầu ban đầu:
+- **Backend**: Spring Boot 3, Java 17, Spring Data JPA, Spring Security 6.
+- **Frontend**: React 18, TypeScript, Vite, Lucide Icons.
+- **Database**: PostgreSQL 15 (Chạy qua Docker), H2 Database (cho Integration Tests).
+- **Xác thực & Bảo mật**: BCrypt password hashing, JWT Access Token (30 phút) & Refresh Token (7 ngày) lưu DB, Token Revocation (Blacklist) khi Đăng xuất.
 
-- Backend: Spring Boot 3, Java 17, Spring Data JPA, PostgreSQL 15.
-- Frontend: React 18, TypeScript, Vite.
-- Xác thực: BCrypt, JWT access token 30 phút và refresh token 7 ngày.
+---
 
-### Trạng thái bàn giao
+## 🚀 Hướng Dẫn Chạy Nhanh Cho Đồng Đội (Windows)
 
-- [x] Lát 1: đăng ký khách thuê, hash BCrypt, JWT access/refresh token và tự động đăng nhập.
-- [x] Lát 2: kiểm tra trùng email/số điện thoại, trả lỗi đúng field với HTTP `409`.
-- [x] Đăng nhập bằng email hoặc số điện thoại.
-- [x] Frontend hiển thị nhãn vai trò `Khách thuê`, không hiển thị mã `TENANT`.
-- [x] Backend integration tests và frontend production build đã pass.
+### Yêu cầu cài đặt trước:
+1. **Docker Desktop** đang bật.
+2. **Java 17** & **Maven 3.9+**.
+3. **Node.js 20+** & **npm 10+**.
 
-Nhánh này đã push lên GitHub nhưng **chưa merge vào `dev`**. Các thay đổi cũ
-trên nhánh `feature/tenant-self-registration` vẫn được giữ nguyên.
+---
 
-### Chạy nhanh trên Windows
-
-Yêu cầu: Docker Desktop đang mở, Java 17, Maven 3.9+ và Node.js 20+.
-Các đường dẫn Java/Maven dưới đây là vị trí trên máy phát triển hiện tại; nếu
-máy khác cài ở nơi khác thì sửa `JAVA_HOME` và `Path` tương ứng.
-
-Mở PowerShell thứ nhất tại thư mục gốc repository:
-
+### Bước 1: Khởi động CSDL PostgreSQL (Docker)
+Mở PowerShell tại thư mục gốc repository:
 ```powershell
 docker compose up -d postgres
+```
+
+### Bước 2: Khởi chạy Backend Spring Boot (Port 8080)
+Mở PowerShell thứ nhất:
+```powershell
+# Nạp biến môi trường Java 17 / Maven (nếu chưa cài sẵn vào System Path)
 $env:JAVA_HOME = "D:\DevTools\Java\temurin-17.0.20.1+1"
-$env:MAVEN_OPTS = "-Dmaven.repo.local=D:\DevCache\m2"
-$env:Path = "D:\DevTools\Maven\apache-maven-3.9.9\bin;$env:Path"
-Set-Location backend
+$env:Path = "$env:JAVA_HOME\bin;D:\DevTools\Maven\apache-maven-3.9.9\bin;$env:Path"
+
+# Vào thư mục backend và chạy
+cd backend
 mvn test
 mvn spring-boot:run
 ```
+Backend API sẽ chạy tại: `http://localhost:8080`
 
-Mở PowerShell thứ hai tại thư mục gốc repository:
-
+### Bước 3: Khởi chạy Frontend React Vite (Port 5173)
+Mở PowerShell thứ hai:
 ```powershell
-Set-Location frontend
+cd frontend
 npm install
 npm run dev -- --host 127.0.0.1
 ```
+Mở trình duyệt truy cập: `http://127.0.0.1:5173/`
 
-Mở URL Vite được in trong terminal, thường là `http://127.0.0.1:5173/`.
-Nếu cổng đó đang bận, Vite sẽ chọn cổng tiếp theo, thường là `5174`.
+---
 
-### Các lệnh riêng
+## 📋 Danh Sách Tính Năng Đã Tích Hợp (Sprint 1)
 
-Chạy PostgreSQL (Docker Engine phải đang chạy):
+### 1. S1-01: Đăng Ký Tài Khoản Khách Thue
+- Form đăng ký 4 trường (`fullName`, `phone`, `email`, `password`).
+- Mã hoá BCrypt, sinh JWT Token tự động đăng nhập sau khi tạo tài khoản.
+- Validation dữ liệu: Số điện thoại (10 chữ số bắt đầu bằng 0), Mật khẩu (>=8 ký tự, có chữ & số).
+- Bắt trùng Email/SĐT độc lập: trả HTTP `409 CONFLICT` mã `DUPLICATE_FIELD` và highlight đúng khung nhập trên UI.
 
-```powershell
-docker compose up -d postgres
-```
+### 2. S1-02: Đăng Nhập & Bảo Vệ Phiên Làm Việc
+- Đăng nhập bằng **Email HOẶC Số điện thoại**.
+- **Chống dò mật khẩu**: Nhập sai 5 lần liên tiếp trong 15 phút → Tạm khóa tài khoản 15 phút (trả HTTP `423`).
+- **Đăng xuất & Vô hiệu hóa phiên**: Endpoint `/api/auth/logout` đưa Access Token vào Blacklist và vô hiệu hóa Refresh Token trong DB.
+- **Refresh Token Rotation**: Endpoint `/api/auth/refresh` cấp lại Access Token mới.
 
-Chạy backend test bằng H2, không cần PostgreSQL:
+### 3. S1-06: Hồ Sơ Cá Nhân Khách Thuê & Phân Quyền Giấy Tờ
+- Form khai báo hồ sơ: Họ tên, Ngày sinh, Số Căn cước (CCCD), Quê quán, Nghề nghiệp.
+- **Bảo mật Căn cước**: Che tự động (`*****6789` với 9 số, `********6789` với 12 số) để bảo vệ quyền riêng tư.
+- **Upload Ảnh Giấy Tờ**: Tải lên ảnh mặt trước/sau (tối đa 5MB, định dạng JPG/PNG). Tự động thu nhỏ chiều rộng ảnh nếu vượt quá 1600px để tối ưu lưu trữ.
 
-```powershell
-Set-Location backend
-mvn test
-```
+---
 
-Backend chạy tại `http://localhost:8080`.
+## 🧪 Chạy Kiểm Thử Tự Động (Backend Tests)
 
-API đăng ký:
-
-```text
-POST http://localhost:8080/api/auth/register
-```
-
-Body JSON:
-
-```json
-{
-  "fullName": "Nguyen Van A",
-  "phone": "0901234567",
-  "email": "a@example.com",
-  "password": "MatKhau123"
-}
-```
-
-API đăng nhập bằng email hoặc số điện thoại:
-
-```text
-POST http://localhost:8080/api/auth/login
-```
-
-```json
-{
-  "identifier": "a@example.com",
-  "password": "MatKhau123"
-}
-```
-
-Sai thông tin đăng nhập trả HTTP `401` với mã `INVALID_CREDENTIALS`.
-
-Lỗi validation trả HTTP `400` với `fieldErrors`. Lỗi trùng email hoặc số điện
-thoại trả HTTP `409` với mã `DUPLICATE_FIELD`; frontend hiển thị lỗi đúng tại
-field tương ứng và không tạo tài khoản mới.
-
-Kiểm tra backend bằng H2 test database, không cần PostgreSQL:
-
+Để kiểm tra toàn bộ 11 Integration & Unit test cases:
 ```powershell
 cd backend
 mvn test
 ```
 
-Để dừng PostgreSQL sau khi demo:
+---
+
+## 🛑 Dừng Các Dịch Vụ Sau Khi Test
 
 ```powershell
 docker compose down
 ```
-
----
-
