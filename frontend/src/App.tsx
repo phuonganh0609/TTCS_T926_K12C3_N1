@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
-import { ArrowRight, CheckCircle2, LockKeyhole, Mail, Phone, UserRound } from 'lucide-react';
-import { loginTenant, LoginForm, registerTenant, RegisterForm, RegisterResponse } from './api';
+import { ArrowRight, CheckCircle2, LockKeyhole, LogOut, Mail, Phone, UserCheck, UserRound } from 'lucide-react';
+import { loginTenant, LoginForm, logoutTenant, registerTenant, RegisterForm, RegisterResponse } from './api';
+import { HoSo } from './HoSo';
 
 const initialForm: RegisterForm = {
   fullName: '',
@@ -39,6 +40,8 @@ function App() {
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [dashboardUser, setDashboardUser] = useState<RegisterResponse['user'] | null>(null);
+  const [accessToken, setAccessToken] = useState<string>(() => localStorage.getItem('accessToken') ?? '');
+  const [view, setView] = useState<'dashboard' | 'profile'>('dashboard');
   const [mode, setMode] = useState<'register' | 'login'>('register');
   const [loginForm, setLoginForm] = useState<LoginForm>(initialLoginForm);
 
@@ -72,11 +75,12 @@ function App() {
       const response = mode === 'register' ? await registerTenant(form) : await loginTenant(loginForm);
       localStorage.setItem('accessToken', response.accessToken);
       localStorage.setItem('refreshToken', response.refreshToken);
+      setAccessToken(response.accessToken);
       setSuccess(mode === 'register');
       setForm(initialForm);
       setLoginForm(initialLoginForm);
       window.history.replaceState({}, '', '/trang-chu');
-      window.setTimeout(() => setDashboardUser(response.user), 700);
+      window.setTimeout(() => setDashboardUser(response.user), 500);
     } catch (error) {
       const apiError = error as Error & { fieldErrors?: Record<string, string> };
       setServerError(apiError.message);
@@ -86,7 +90,27 @@ function App() {
     }
   };
 
+  const handleLogout = async () => {
+    if (accessToken) {
+      await logoutTenant(accessToken, dashboardUser?.id);
+    }
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    setAccessToken('');
+    setDashboardUser(null);
+    setView('dashboard');
+    window.history.replaceState({}, '', '/');
+  };
+
   if (dashboardUser) {
+    if (view === 'profile') {
+      return (
+        <main className="shell dashboard-shell">
+          <HoSo token={accessToken} onBack={() => setView('dashboard')} />
+        </main>
+      );
+    }
+
     return (
       <main className="shell dashboard-shell">
         <section className="dashboard-card" aria-labelledby="dashboard-title">
@@ -97,6 +121,15 @@ function App() {
             <span>Email</span><strong>{dashboardUser.email}</strong>
             <span>Số điện thoại</span><strong>{dashboardUser.phone}</strong>
             <span>Vai trò</span><strong>{roleLabels[dashboardUser.role] ?? dashboardUser.role}</strong>
+          </div>
+
+          <div className="dashboard-actions">
+            <button type="button" className="btn-primary" onClick={() => setView('profile')}>
+              <UserCheck size={18} /> Hồ sơ cá nhân (S1-06)
+            </button>
+            <button type="button" className="btn-secondary" onClick={handleLogout}>
+              <LogOut size={18} /> Đăng xuất
+            </button>
           </div>
         </section>
       </main>
